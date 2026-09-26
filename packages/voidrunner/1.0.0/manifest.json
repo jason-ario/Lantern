@@ -1,0 +1,17 @@
+{
+  "id": "voidrunner",
+  "name": "Voidrunner",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "runtime": { "min": "1.0", "features": ["canvas2d", "webaudio"] },
+  "input": ["keyboard", "mouse", "touch"],
+  "orientation": "any",
+  "achievements": [
+    { "id": "first_blood", "name": "First Contact", "description": "Destroy your first hostile." },
+    { "id": "sector_3", "name": "Deep Signal", "description": "Reach Sector 3." },
+    { "id": "sector_5", "name": "Past the Static", "description": "Reach Sector 5." },
+    { "id": "untouchable", "name": "Untouchable", "description": "Clear a sector without taking a hit." },
+    { "id": "score_25k", "name": "Signal Boost", "description": "Score 25,000 points in a single run." }
+  ]
+}

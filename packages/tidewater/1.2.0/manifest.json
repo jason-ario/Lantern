@@ -1,0 +1,18 @@
+{
+  "id": "tidewater",
+  "name": "Tidewater Trading Co.",
+  "version": "1.2.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "runtime": { "min": "1.0", "features": ["canvas2d", "dom"] },
+  "input": ["mouse", "touch", "keyboard"],
+  "orientation": "any",
+  "achievements": [
+    { "id": "first_catch", "name": "First Catch", "description": "Haul in your first net." },
+    { "id": "first_skiff", "name": "Shipwright", "description": "Buy your first skiff." },
+    { "id": "fleet_10", "name": "A Proper Fleet", "description": "Own 10 vessels and buildings." },
+    { "id": "lighthouse", "name": "Keeper of the Light", "description": "Raise the Harbor Lighthouse." },
+    { "id": "coins_1k", "name": "Thousand-Coin Harbor", "description": "Earn 1,000 coins in total." },
+    { "id": "coins_100k", "name": "Merchant Prince", "description": "Earn 100,000 coins in total." }
+  ]
+}

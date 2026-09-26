@@ -1,0 +1,10 @@
+{
+  "id": "_placeholder",
+  "name": "Lantern Placeholder Build",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "runtime": { "min": "1.0", "features": ["dom"] },
+  "input": ["mouse", "keyboard", "touch"],
+  "achievements": []
+}

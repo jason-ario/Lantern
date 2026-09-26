@@ -1,0 +1,15 @@
+{
+  "name": "lantern",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lantern — premium instant-play web games platform (prototype)",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/index.js",
+    "reset": "rm -rf data && echo 'Database will be re-seeded on next start'",
+    "build:art": "node scripts/build-art.js",
+    "build:sample": "node scripts/build-sample.js",
+    "test:e2e": "node scripts/e2e.mjs"
+  }
+}

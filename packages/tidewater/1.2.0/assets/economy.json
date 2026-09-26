@@ -1,0 +1,19 @@
+{
+  "buildings": [
+    { "id": "skiff",   "name": "Fishing Skiff", "desc": "A patched hull and a stubborn crew.", "cost": 15,     "rate": 0.4 },
+    { "id": "traps",   "name": "Crab Traps",    "desc": "Pots along the breakwater.",          "cost": 110,    "rate": 2 },
+    { "id": "cannery", "name": "Cannery",       "desc": "Salt, tin and a steam press.",        "cost": 1200,   "rate": 9 },
+    { "id": "cog",     "name": "Trade Cog",     "desc": "Carries tinned fish up the coast.",   "cost": 13000,  "rate": 45 },
+    { "id": "icehouse","name": "Ice House",     "desc": "Fresh catch, sold inland.",           "cost": 140000, "rate": 210 },
+    { "id": "clipper", "name": "Ocean Clipper", "desc": "Faster than rumours.",                "cost": 1600000,"rate": 1100 }
+  ],
+  "upgrades": [
+    { "id": "nets",       "name": "Knotted Nets",      "desc": "Hauling brings in twice as much.", "cost": 60,      "effect": { "click": 2 } },
+    { "id": "hulls",      "name": "Tarred Hulls",      "desc": "Skiffs catch twice as much.",       "cost": 300,     "effect": { "skiff": 2 } },
+    { "id": "bait",       "name": "Herring Bait",      "desc": "Crab traps yield twice as much.",   "cost": 1400,    "effect": { "traps": 2 } },
+    { "id": "lighthouse", "name": "Harbor Lighthouse", "desc": "Everything earns 50% more. Ships find their way home.", "cost": 6000, "effect": { "all": 1.5 } },
+    { "id": "salt",       "name": "Salt Contracts",    "desc": "Canneries earn twice as much.",     "cost": 18000,   "effect": { "cannery": 2 } },
+    { "id": "charter",    "name": "Merchant Charter",  "desc": "Trade cogs earn twice as much.",    "cost": 160000,  "effect": { "cog": 2 } },
+    { "id": "master",     "name": "Harbor Master",     "desc": "Everything earns double.",          "cost": 1200000, "effect": { "all": 2 } }
+  ]
+}

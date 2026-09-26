@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Nightpaw</title>
+<link rel="stylesheet" href="style.css">
+<script src="/sdk/v1/platform-sdk.js"></script>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="touch" hidden>
+  <div class="pad left">
+    <button data-k="left" aria-label="Left">◀</button>
+    <button data-k="up" aria-label="Up / rest">▲</button>
+    <button data-k="right" aria-label="Right">▶</button>
+    <button data-k="down" aria-label="Down">▼</button>
+  </div>
+  <div class="pad right">
+    <button data-k="dash" aria-label="Dash">DASH</button>
+    <button data-k="attack" aria-label="Slash">SLASH</button>
+    <button data-k="jump" aria-label="Jump">JUMP</button>
+    <button data-k="map" class="small" aria-label="Map">MAP</button>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

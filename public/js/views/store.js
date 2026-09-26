@@ -1,0 +1,176 @@
+import { state, released } from '../state.js';
+import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, $, $$ } from '../ui.js';
+import { go } from '../nav.js';
+
+export function storeBar(active = 'home', q = '') {
+  return `<div class="store-bar"><div class="page store-bar-inner">
+    <a href="/store" data-link class="${active === 'home' ? 'on' : ''}">Your Store</a>
+    <a href="/search?sort=new" data-link class="${active === 'new' ? 'on' : ''}">New &amp; Noteworthy</a>
+    <a href="/search?demo=1" data-link class="${active === 'demo' ? 'on' : ''}">Instant Demos</a>
+    <a href="/search?sort=top" data-link class="${active === 'top' ? 'on' : ''}">Top Sellers</a>
+    <form class="store-search" role="search" id="storeSearch">
+      <input name="q" type="search" placeholder="Search the store" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
+      <button aria-label="Search">${icons.search}</button>
+    </form>
+  </div></div>`;
+}
+
+export function bindStoreBar(root) {
+  $('#storeSearch', root)?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = new FormData(e.target).get('q').trim();
+    go(`/search${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+  });
+}
+
+function recommendations() {
+  const owned = [...state.owned].map((id) => state.byId.get(id)).filter(Boolean);
+  const weights = {};
+  owned.forEach((g) => g.tags.forEach((t) => { weights[t] = (weights[t] ?? 0) + 1; }));
+  const pool = released().filter((g) => !state.owned.has(g.id));
+  const scored = pool.map((g) => ({ g, s: g.tags.reduce((t, tag) => t + (weights[tag] ?? 0), 0) + g.rating?.pct / 100 }))
+    .sort((a, b) => b.s - a.s);
+  const basis = owned.sort((a, b) => b.tags.filter((t) => weights[t] > 1).length - a.tags.filter((t) => weights[t] > 1).length)[0];
+  return { basis, games: scored.slice(0, 4).map((x) => x.g) };
+}
+
+function listRow(g) {
+  const r = ratingLabel(g.rating);
+  return `<a class="list-row" href="/app/${esc(g.id)}" data-link data-preview="${esc(g.id)}">
+    <div class="lr-art" style="background-image:url('${esc(g.media.header)}')"></div>
+    <div class="lr-body">
+      <div class="lr-title">${esc(g.title)}</div>
+      <div class="lr-tags">${g.tags.slice(0, 4).map(esc).join(', ')}</div>
+      <div class="lr-sub">${g.status === 'coming_soon' ? `Releases ${date(g.releaseDate)}` : `<span class="${r.cls}">${r.label}</span>`}${g.demo ? ' · <span class="demo-inline">Instant demo</span>' : ''}</div>
+    </div>
+    <div class="lr-price">${priceTag(g, { compact: true })}</div>
+  </a>`;
+}
+
+function preview(g) {
+  if (!g) return '';
+  const r = ratingLabel(g.rating);
+  return `<div class="pv-title">${esc(g.title)}</div>
+    <div class="pv-meta"><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</div>
+    <div class="pv-tags">${g.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+    ${g.media.screenshots.slice(0, 4).map((s) => `<div class="pv-shot" style="background-image:url('${esc(s)}')"></div>`).join('')}`;
+}
+
+export async function render(root) {
+  const feat = released().filter((g) => g.featured);
+  const demos = released().filter((g) => g.demo);
+  const trending = [...released()].sort((a, b) => b.stats.trend - a.stats.trend).slice(0, 10);
+  const tabs = {
+    new: [...released()].sort((a, b) => b.releaseDate.localeCompare(a.releaseDate)).slice(0, 8),
+    top: [...released()].sort((a, b) => b.stats.sales - a.stats.sales).slice(0, 8),
+    soon: state.games.filter((g) => g.status === 'coming_soon').sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
+  };
+  const rec = recommendations();
+  const topTags = state.tags.slice(0, 8);
+
+  root.innerHTML = `${storeBar('home')}
+  <div class="page store">
+    <section class="block">
+      <div class="sec-h"><h2>Featured &amp; Recommended</h2></div>
+      <div class="feat" id="feat">
+        <a class="feat-main" id="featMain" href="#" data-link></a>
+        <div class="feat-side" id="featSide"></div>
+        <button class="feat-arrow prev" aria-label="Previous">‹</button><button class="feat-arrow next" aria-label="Next">›</button>
+      </div>
+      <div class="dots" id="featDots">${feat.map((_, i) => `<button data-i="${i}" aria-label="Featured ${i + 1}"></button>`).join('')}</div>
+    </section>
+
+    <section class="block instant">
+      <div class="sec-h"><h2><span class="bolt">${icons.bolt}</span> Play instantly — no download, no install</h2><a href="/search?demo=1" data-link>See all</a></div>
+      <div class="instant-grid">
+        ${demos.map((g) => `<div class="instant-card">
+          <a class="ic-art" href="/app/${esc(g.id)}" data-link style="background-image:url('${esc(g.media.hero)}')">${logo(g, 'md')}</a>
+          <div class="ic-body">
+            <div><div class="ic-title">${esc(g.title)}</div><div class="ic-sub">${esc(g.blurb ?? '')} · ${g.demo.minutes}-min demo · ${g.version ? `${Math.max(1, Math.round(g.version.sizeBytes / 1024))} KB` : ''}</div></div>
+            <div class="ic-actions">
+              ${state.owned.has(g.id)
+                ? `<a class="btn btn-play" href="/play/${esc(g.id)}" data-link>${icons.play} Play</a>`
+                : `<a class="btn btn-demo" href="/play/${esc(g.id)}?demo=1" data-link>${icons.play} Try now</a><a class="btn btn-ghost" href="/app/${esc(g.id)}" data-link>${price(g.priceCents)}</a>`}
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="sec-h"><h2>Trending</h2><div class="row-arrows"><button data-scroll="-1" aria-label="Scroll left">‹</button><button data-scroll="1" aria-label="Scroll right">›</button></div></div>
+      <div class="cover-row" id="trending">${trending.map((g) => cover(g, { sub: `<span>${esc(g.title)}</span>${priceTag(g, { compact: true })}` })).join('')}</div>
+    </section>
+
+    <section class="block">
+      <div class="tabs" role="tablist">
+        <button class="on" data-tab="new">New Releases</button><button data-tab="top">Top Sellers</button><button data-tab="soon">Coming Soon</button>
+      </div>
+      <div class="tabbed">
+        <div class="tab-list" id="tabList"></div>
+        <aside class="tab-preview" id="tabPreview"></aside>
+      </div>
+    </section>
+
+    ${rec.games.length ? `<section class="block">
+      <div class="sec-h"><h2>Recommended for you</h2>${rec.basis ? `<span class="sec-note">Because you play <a href="/app/${esc(rec.basis.id)}" data-link>${esc(rec.basis.title)}</a></span>` : ''}</div>
+      <div class="capsule-grid">${rec.games.map((g) => capsule(g)).join('')}</div>
+    </section>` : ''}
+
+    <section class="block">
+      <div class="sec-h"><h2>Browse by tag</h2></div>
+      <div class="tag-tiles">${topTags.map((t) => {
+        const g = released().find((x) => x.tags.includes(t.name)) ?? state.games[0];
+        return `<a class="tag-tile" href="/search?tag=${encodeURIComponent(t.name)}" data-link style="background-image:url('${esc(g.media.header)}')"><span>${esc(t.name)}</span><small>${t.count} games</small></a>`;
+      }).join('')}</div>
+    </section>
+  </div>`;
+  bindStoreBar(root);
+
+  // --- featured carousel ---
+  let fi = 0, timer = null;
+  const showFeat = (i) => {
+    fi = (i + feat.length) % feat.length;
+    const g = feat[fi];
+    const r = ratingLabel(g.rating);
+    const main = $('#featMain', root);
+    main.href = `/app/${g.id}`;
+    main.style.backgroundImage = `url('${g.media.hero}')`;
+    main.innerHTML = `${logo(g, 'xl')}<div class="feat-caption">${esc(g.shortDescription)}</div>`;
+    $('#featSide', root).innerHTML = `
+      <div class="fs-title">${esc(g.title)}</div>
+      <div class="fs-shots">${g.media.screenshots.slice(0, 4).map((s) => `<div style="background-image:url('${esc(s)}')"></div>`).join('')}</div>
+      <div class="fs-status">${state.owned.has(g.id) ? 'In your library' : 'Now available'}</div>
+      <div class="fs-tags">${tagChips(g.tags, 4)}</div>
+      <div class="fs-foot"><span class="${r.cls}">${r.label}</span>${g.demo ? '<span class="demo-inline">Instant demo</span>' : ''}${priceTag(g)}</div>`;
+    $$('#featDots button', root).forEach((b, j) => b.classList.toggle('on', j === fi));
+  };
+  const auto = () => { clearInterval(timer); timer = setInterval(() => showFeat(fi + 1), 7000); };
+  showFeat(0); auto();
+  $('#feat', root).addEventListener('mouseenter', () => clearInterval(timer));
+  $('#feat', root).addEventListener('mouseleave', auto);
+  $('.feat-arrow.prev', root).onclick = () => showFeat(fi - 1);
+  $('.feat-arrow.next', root).onclick = () => showFeat(fi + 1);
+  $('#featDots', root).onclick = (e) => { if (e.target.dataset.i) showFeat(+e.target.dataset.i); };
+
+  // --- trending scroller ---
+  $$('[data-scroll]', root).forEach((b) => { b.onclick = () => $('#trending', root).scrollBy({ left: +b.dataset.scroll * 600, behavior: 'smooth' }); });
+
+  // --- tabs with hover preview ---
+  const showTab = (k) => {
+    $$('.tabs button', root).forEach((b) => b.classList.toggle('on', b.dataset.tab === k));
+    $('#tabList', root).innerHTML = tabs[k].map(listRow).join('');
+    $('#tabPreview', root).innerHTML = preview(tabs[k][0]);
+    $('#tabList .list-row', root)?.classList.add('hot');
+  };
+  $('.tabs', root).onclick = (e) => { if (e.target.dataset.tab) showTab(e.target.dataset.tab); };
+  $('#tabList', root).addEventListener('mouseover', (e) => {
+    const row = e.target.closest('[data-preview]');
+    if (!row || row.classList.contains('hot')) return;
+    $$('#tabList .list-row', root).forEach((r) => r.classList.toggle('hot', r === row));
+    $('#tabPreview', root).innerHTML = preview(state.byId.get(row.dataset.preview));
+  });
+  showTab('new');
+
+  return () => clearInterval(timer);
+}

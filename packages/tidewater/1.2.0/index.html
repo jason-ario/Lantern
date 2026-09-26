@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tidewater Trading Co.</title>
+<link rel="stylesheet" href="style.css">
+<script src="/sdk/v1/platform-sdk.js"></script>
+</head>
+<body>
+<div id="app">
+  <section class="scene">
+    <canvas id="harbor"></canvas>
+    <header class="topbar">
+      <div class="brand">
+        <div class="crest">⚓</div>
+        <div>
+          <div class="co">Tidewater Trading Co.</div>
+          <button id="harborName" class="harbor-name" title="Rename your harbor">Gull's Rest</button>
+        </div>
+      </div>
+      <div class="purse">
+        <div class="coins"><span id="coins">0</span><small>coins</small></div>
+        <div class="rate"><span id="rate">0</span> / sec</div>
+      </div>
+    </header>
+    <button id="haul" class="haul"><span class="haul-title">Haul the Nets</span><span class="haul-sub">+<span id="clickValue">1</span> coins</span></button>
+    <div id="floaters"></div>
+  </section>
+  <section class="ledger">
+    <div class="col">
+      <h2>Fleet &amp; Harbor</h2>
+      <div id="buildings"></div>
+    </div>
+    <div class="col">
+      <h2>Improvements</h2>
+      <div id="upgrades"></div>
+      <h2>Logbook</h2>
+      <dl class="stats" id="stats"></dl>
+      <div class="savebar"><span id="saveState">Connecting…</span><button id="saveNow">Save now</button></div>
+    </div>
+  </section>
+</div>
+<div id="modal" class="modal hidden"><div class="card"><h3 id="modalTitle"></h3><p id="modalBody"></p><button id="modalOk">Back to the harbor</button></div></div>
+<script src="game.js"></script>
+</body>
+</html>

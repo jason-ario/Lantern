@@ -1,0 +1,10 @@
+[
+  { "name": "Outer Drift",     "hue": 320, "kills": 14, "spawn": 1.05, "speed": 1.0,  "fire": 0.25 },
+  { "name": "Glass Reef",      "hue": 190, "kills": 18, "spawn": 0.95, "speed": 1.1,  "fire": 0.35 },
+  { "name": "Signal Graveyard","hue": 45,  "kills": 22, "spawn": 0.85, "speed": 1.2,  "fire": 0.45 },
+  { "name": "The Hum",         "hue": 275, "kills": 26, "spawn": 0.75, "speed": 1.3,  "fire": 0.55 },
+  { "name": "Static Veil",     "hue": 150, "kills": 30, "spawn": 0.68, "speed": 1.4,  "fire": 0.65 },
+  { "name": "Redline",         "hue": 0,   "kills": 34, "spawn": 0.6,  "speed": 1.55, "fire": 0.75 },
+  { "name": "Null Choir",      "hue": 230, "kills": 38, "spawn": 0.52, "speed": 1.7,  "fire": 0.85 },
+  { "name": "Event Horizon",   "hue": 300, "kills": 44, "spawn": 0.45, "speed": 1.85, "fire": 1.0 }
+]

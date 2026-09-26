@@ -1,0 +1,12 @@
+{
+  "name": "Skylark",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "runtime": { "min": "1.0", "features": ["canvas2d"] },
+  "input": ["mouse", "touch", "keyboard"],
+  "achievements": [
+    { "id": "airborne", "name": "Airborne", "description": "Fly 100 metres." },
+    { "id": "long_haul", "name": "Long Haul", "description": "Fly 500 metres in one flight." }
+  ]
+}

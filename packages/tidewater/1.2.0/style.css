@@ -1,0 +1,56 @@
+:root { --ink: #f3e6cc; --muted: #b9a888; --paper: #1a2330; --paper2: #121a24; --line: #2f3c4d; --gold: #ffc46b; --sea: #8fd3e8; --green: #9fe29a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--paper2); color: var(--ink); font: 14px/1.4 Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+#app { display: grid; grid-template-rows: minmax(260px, 46vh) 1fr; height: 100%; }
+.scene { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+#harbor { position: absolute; inset: 0; width: 100%; height: 100%; }
+.topbar { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 18px; background: linear-gradient(#0c1119cc, transparent); }
+.brand { display: flex; gap: 10px; align-items: center; }
+.crest { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--gold); color: var(--gold); font-size: 18px; border-radius: 50%; }
+.co { font-style: italic; font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+.harbor-name { background: none; border: 0; padding: 0; font-size: 22px; font-weight: 700; color: var(--ink); border-bottom: 1px dashed transparent; }
+.harbor-name:hover { border-bottom-color: var(--muted); }
+.purse { text-align: right; }
+.coins { font-size: 30px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+.coins small { font-size: 12px; color: var(--muted); margin-left: 6px; font-weight: 400; }
+.rate { color: var(--sea); font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.haul { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; padding: 12px 28px; background: #2a1d10e6; border: 1px solid var(--gold); color: var(--ink); border-radius: 3px; box-shadow: 0 6px 24px #0008; transition: transform .06s; }
+.haul:hover { background: #3a2814f0; }
+.haul:active { transform: translateX(-50%) scale(.97); }
+.haul-title { font-size: 18px; font-weight: 700; letter-spacing: .03em; }
+.haul-sub { font-size: 12px; color: var(--gold); }
+#floaters { position: absolute; inset: 0; pointer-events: none; }
+.float { position: absolute; color: var(--gold); font-weight: 700; animation: up 1s ease-out forwards; text-shadow: 0 2px 6px #000; }
+@keyframes up { to { transform: translateY(-60px); opacity: 0; } }
+.ledger { display: grid; grid-template-columns: 1.3fr 1fr; gap: 0; overflow: auto; }
+.col { padding: 14px 18px; }
+.col + .col { border-left: 1px solid var(--line); }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .18em; color: var(--muted); font-weight: 400; margin: 6px 0 10px; font-family: "Segoe UI", Arial, sans-serif; }
+.item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); background: var(--paper); margin-bottom: 6px; border-radius: 2px; }
+.item .name { font-weight: 700; font-size: 15px; }
+.item .name .count { color: var(--gold); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.item .desc { color: var(--muted); font-size: 12px; font-style: italic; }
+.item .yield { color: var(--sea); font-size: 12px; font-family: "Segoe UI", Arial, sans-serif; }
+.item button { min-width: 108px; padding: 7px 10px; background: #2a1d10; border: 1px solid #6b5230; border-radius: 2px; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 600; color: var(--gold); }
+.item button:disabled { opacity: .4; cursor: default; }
+.item.owned { opacity: .55; }
+.item.locked { opacity: .35; }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 0 12px; font-size: 13px; }
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.savebar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; color: var(--green); }
+.savebar button { background: none; border: 1px solid var(--line); padding: 4px 10px; border-radius: 2px; color: var(--ink); }
+.modal { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 5; }
+.modal.hidden { display: none; }
+.card { max-width: 380px; margin: 16px; background: var(--paper); border: 1px solid var(--gold); padding: 22px; text-align: center; box-shadow: 0 20px 60px #000; }
+.card h3 { margin: 0 0 8px; font-size: 22px; }
+.card p { color: var(--muted); margin: 0 0 16px; }
+.card button { padding: 9px 18px; background: #2a1d10; border: 1px solid var(--gold); color: var(--gold); border-radius: 2px; }
+@media (max-width: 720px) {
+  #app { grid-template-rows: 250px 1fr; }
+  .ledger { grid-template-columns: 1fr; }
+  .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+  .harbor-name { font-size: 18px; }
+  .coins { font-size: 24px; }
+}
