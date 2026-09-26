@@ -648,7 +648,8 @@
      "w": 1,
      "h": 6,
      "cutscene": "warden_intro",
-     "if": "!warden_dead"
+     "if": "!warden_dead",
+     "once": false
     },
     "T": {
      "type": "npc",

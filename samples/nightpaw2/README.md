@@ -67,6 +67,14 @@ Steps: `say`, `narrate`, `wait`, `letterbox`, `walk`, `jump`, `face`, `camera`, 
 `achieve`, `item` (item card), `title` (area/boss card), `memory`, `storybook`, `if`, `boss`,
 `emote`, `player`, `teleport`, `save`, `refresh`, `waitLand`, `run` (another cutscene), `hint`,
 `npc`, `end`. Add new step types in `src/story/cutscene.ts`.
+
+Players can **hold Esc / Start** to skip any cutscene. Skipping drops the presentation steps
+(`say`, `narrate`, `camera`, `item`, `memory`, `storybook`, `wait`...) but still runs every step
+that changes the game (`flag`, `give`, `shade`, `boss`, `player`, `music`...), so a skipped
+cutscene leaves the world exactly as the full one would. Keep story effects in those steps.
+
+Triggers fire once by default. Add `"once": false` for ones that must re-arm, like a boss
+intro that has to play again after the player dies (it fires once per entry, never mid-fight).
 Conditions (`if`, entity `if`/`hideIf`, talk options) read like `"warden_dead & !has:wings"`.
 
 **A new enemy or prop.** Write a class extending `Entity` (see `src/entities/enemies.ts`),

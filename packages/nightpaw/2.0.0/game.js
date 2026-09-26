@@ -995,6 +995,44 @@
       } else
         this.tweens.add({ targets: this.bossGroup, alpha: 0, duration: 800 });
     }
+    get skipping() {
+      return !!this.game_?.skipping;
+    }
+    tw(cfg) {
+      if (this.skipping) {
+        const targets = Array.isArray(cfg.targets) ? cfg.targets : [cfg.targets];
+        for (const t of targets)
+          for (const k of ["alpha", "x", "y", "scale"])
+            if (cfg[k] !== undefined)
+              t[k] = cfg[k];
+        return Promise.resolve();
+      }
+      return new Promise((r) => this.tweens.add({ ...cfg, onComplete: () => r() }));
+    }
+    cancelCutsceneUI() {
+      if (this.typing) {
+        const r = this.typing.resolve;
+        this.typing = null;
+        r();
+      }
+      this.dlg.setAlpha(0);
+      const m = this.modal;
+      if (m?.cancel)
+        m.cancel();
+    }
+    skipUI(progress, visible) {
+      if (!this.skipText) {
+        this.skipText = this.add.text(W - 36, H - 30, "", { fontFamily: FONT, fontSize: "18px", color: "#b8b0d0" }).setOrigin(1, 1).setDepth(1200).setAlpha(0);
+        this.skipBar = this.add.rectangle(W - 36, H - 22, 150, 3, 16764794).setOrigin(1, 0.5).setDepth(1200).setAlpha(0);
+      }
+      const label = Input.usingPad ? "Hold START to skip" : "Hold ESC to skip";
+      if (this.skipText.text !== label)
+        this.skipText.setText(label);
+      this.skipText.setAlpha(visible ? 0.45 + progress * 0.55 : 0);
+      this.skipBar.setAlpha(visible && progress > 0 ? 1 : 0).setScale(progress, 1);
+    }
+    skipText;
+    skipBar;
     hint(text, ms = 4000) {
       const t = this.add.text(W / 2, H - 70, text, { fontFamily: FONT, fontSize: "22px", color: "#d8d0f0", fontStyle: "italic", stroke: "#07060a", strokeThickness: 5 }).setOrigin(0.5).setAlpha(0).setDepth(700);
       this.tweens.add({ targets: t, alpha: 1, duration: 600, yoyo: true, hold: ms, onComplete: () => t.destroy() });
@@ -1010,7 +1048,7 @@
       else
         this.fadeRect.setFillStyle(0);
       this.tweens.killTweensOf(this.fadeRect);
-      if (ms <= 0) {
+      if (ms <= 0 || this.skipping) {
         this.fadeRect.setAlpha(to);
         return Promise.resolve();
       }
@@ -1048,6 +1086,8 @@
       }
     }
     say(who, text, opts = {}) {
+      if (this.skipping)
+        return Promise.resolve();
       const sp = World.speakers[who] ?? { name: who, pitch: 400 };
       this.dlgName.setText(sp.name ?? "").setColor(sp.color ?? "#ffcf7a");
       if (sp.portrait)
@@ -1078,16 +1118,22 @@
       const txt = this.add.text(W / 2, H / 2, "", { fontFamily: FONT, fontSize: "30px", color: "#e8e2ff", fontStyle: "italic", align: "center", wordWrap: { width: W - 300 }, lineSpacing: 10 }).setOrigin(0.5).setAlpha(0).setDepth(1001);
       for (const line of lines) {
         txt.setText(line);
-        await new Promise((r) => this.tweens.add({ targets: txt, alpha: 1, duration: 700, onComplete: () => r() }));
+        await this.tw({ targets: txt, alpha: 1, duration: 700 });
         await this.waitConfirm(opts.auto ?? 0);
-        await new Promise((r) => this.tweens.add({ targets: txt, alpha: 0, duration: 500, onComplete: () => r() }));
+        await this.tw({ targets: txt, alpha: 0, duration: 500 });
       }
       txt.destroy();
     }
     waitConfirm(auto = 0) {
+      if (this.skipping)
+        return Promise.resolve();
       return new Promise((res) => {
         let t = 0;
         this.modal = {
+          cancel: () => {
+            this.modal = null;
+            res();
+          },
           update: (dt) => {
             t += dt;
             if (t > 0.25 && (Input.pressed("confirm") || Input.pressed("attack")) || auto && t * 1000 > auto) {
@@ -1115,7 +1161,7 @@
       this.tweens.add({ targets: c, alpha: 1, duration: 500 });
       this.tweens.add({ targets: glow, scale: 1.5, alpha: 0.5, duration: 1400, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
       await this.waitConfirm();
-      await new Promise((r) => this.tweens.add({ targets: c, alpha: 0, duration: 400, onComplete: () => r() }));
+      await this.tw({ targets: c, alpha: 0, duration: 400 });
       c.destroy();
     }
     async memory(title, lines, image) {
@@ -1129,14 +1175,15 @@
       c.add([bg, ...pic ? [pic] : [], glow, shade, t1, t2]);
       this.tweens.add({ targets: c, alpha: 1, duration: 1200 });
       this.tweens.add({ targets: shade, y: 240, duration: 2000, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
-      await sleep(this, 1000);
+      if (!this.skipping)
+        await sleep(this, 1000);
       for (const line of lines) {
         t2.setAlpha(0).setText(line);
-        await new Promise((r) => this.tweens.add({ targets: t2, alpha: 1, duration: 900, onComplete: () => r() }));
+        await this.tw({ targets: t2, alpha: 1, duration: 900 });
         await this.waitConfirm();
-        await new Promise((r) => this.tweens.add({ targets: t2, alpha: 0, duration: 500, onComplete: () => r() }));
+        await this.tw({ targets: t2, alpha: 0, duration: 500 });
       }
-      await new Promise((r) => this.tweens.add({ targets: c, alpha: 0, duration: 1000, onComplete: () => r() }));
+      await this.tw({ targets: c, alpha: 0, duration: 1000 });
       c.destroy();
     }
     async storybook(pages, opts = {}) {
@@ -1169,7 +1216,7 @@
         if (title)
           c.add(title);
         c.add(txt);
-        await new Promise((r) => this.tweens.add({ targets: [img, ...title ? [title] : []], alpha: 1, duration: 1200, onComplete: () => r() }));
+        await this.tw({ targets: [img, ...title ? [title] : []], alpha: 1, duration: 1200 });
         this.tweens.add({ targets: img, scale: pan[1], x: W / 2 + (pan[2] ?? 0), y: H / 2 + (pan[3] ?? 0), duration: 9000, ease: "Sine.easeInOut" });
         const t0 = this.time.now;
         const lines = pg.lines ?? [];
@@ -1181,30 +1228,37 @@
         }
         for (let i = 0;!opts.card && i < lines.length; i++) {
           txt.setAlpha(0).setText(lines[i]);
-          await new Promise((r) => this.tweens.add({ targets: txt, alpha: 1, duration: 700, onComplete: () => r() }));
+          await this.tw({ targets: txt, alpha: 1, duration: 700 });
           const res = await this.waitStory(rain, moth, t0);
           if (res === "skip") {
             skip = true;
             break;
           }
           if (i < lines.length - 1)
-            await new Promise((r) => this.tweens.add({ targets: txt, alpha: 0, duration: 350, onComplete: () => r() }));
+            await this.tw({ targets: txt, alpha: 0, duration: 350 });
         }
         if (opts.card || !lines.length) {
           const res = await this.waitStory(rain, moth, t0);
           if (res === "skip")
             skip = true;
         }
-        await new Promise((r) => this.tweens.add({ targets: c.list.filter((o) => o !== black), alpha: 0, duration: 700, onComplete: () => r() }));
+        await this.tw({ targets: c.list.filter((o) => o !== black), alpha: 0, duration: 700 });
         c.list.filter((o) => o !== black).forEach((o) => o.destroy());
       }
-      this.fadeRect.setAlpha(1);
+      if (!this.skipping)
+        this.fadeRect.setAlpha(1);
       c.destroy();
     }
     waitStory(rain, moth, t0) {
+      if (this.skipping)
+        return Promise.resolve("skip");
       return new Promise((res) => {
         let t = 0;
         this.modal = {
+          cancel: () => {
+            this.modal = null;
+            res("skip");
+          },
           update: (dt) => {
             t += dt;
             if (rain) {
@@ -3177,6 +3231,7 @@
       }
     }
   };
+  var PRESENTATION = new Set(["say", "narrate", "wait", "emote", "shake", "sfx", "item", "memory", "storybook", "title", "camera", "waitLand", "hint", "jump", "face"]);
   async function runSteps(h, steps, ctx) {
     for (const s of steps) {
       const fn = STEPS[s.do];
@@ -3184,7 +3239,22 @@
         console.warn("Unknown cutscene step", s.do);
         continue;
       }
-      await fn(h, s, ctx);
+      if (h.skipping) {
+        if (PRESENTATION.has(s.do))
+          continue;
+        if (s.do === "walk") {
+          const P2 = h.player;
+          const tx = s.to !== undefined ? (h.room.x + s.to) * T : P2.x + (s.dx ?? 0) * T;
+          P2.x = tx;
+          P2.scripted = null;
+          if (s.face)
+            P2.face = s.face;
+          continue;
+        }
+        await fn(h, s, ctx);
+        continue;
+      }
+      await (s.do === "end" ? fn(h, s, ctx) : Promise.race([fn(h, s, ctx), h.skipSignal]));
     }
   }
   async function runCutscene(h, id, ctx = {}) {
@@ -3857,6 +3927,7 @@
   register("decal", (g, d, x, y) => visible(d) ? new Decal(g, d, x, y) : null);
 
   class Trigger extends Entity {
+    inside = false;
     constructor(g, d, x, y) {
       super(g, d, x, y);
       this.w = (d.w ?? 1) * T;
@@ -3864,10 +3935,15 @@
       this.y = y + T - this.h;
     }
     update() {
-      if (this.g.inCutscene || this.g.player.dead)
+      if (this.g.inCutscene || this.g.player.dead || this.g.bossActive)
         return;
-      if (!overlap(this.g.player, this))
+      if (!overlap(this.g.player, this)) {
+        this.inside = false;
         return;
+      }
+      if (this.inside)
+        return;
+      this.inside = true;
       if (!Game.test(this.def.if))
         return;
       if (this.def.once !== false) {
@@ -4176,6 +4252,11 @@
         return;
       }
       this.inCutscene = true;
+      this.skipping = false;
+      this.skipHold = 0;
+      this.skipSignal = new Promise((r) => {
+        this.resolveSkip = r;
+      });
       const P2 = this.player;
       P2.locked = true;
       P2.scripted = null;
@@ -4189,11 +4270,36 @@
       }
       P2.locked = false;
       P2.scripted = null;
+      P2.hidden = false;
+      if (this.skipping) {
+        this.snapCamera();
+        this.ui.fade(0, 250);
+      }
+      this.skipping = false;
+      this.ui.skipUI(0, false);
       this.ui.letterbox(false);
       this.camFocus = null;
       this.inCutscene = false;
       Input.swallow();
       this.saveNow();
+    }
+    skipping = false;
+    skipHold = 0;
+    skipSignal = Promise.resolve();
+    resolveSkip = () => {};
+    updateSkip(dt) {
+      if (!this.inCutscene || this.skipping)
+        return;
+      this.skipHold = Input.held("pause") ? this.skipHold + dt : Math.max(0, this.skipHold - dt * 3);
+      const HOLD = 0.6;
+      this.ui.skipUI(Math.min(1, this.skipHold / HOLD), true);
+      if (this.skipHold >= HOLD) {
+        this.skipping = true;
+        this.ui.skipUI(0, false);
+        this.ui.cancelCutsceneUI();
+        this.tweens.killTweensOf(this.camFocus);
+        this.resolveSkip();
+      }
     }
     cam = {
       focus: (x, y, ms) => new Promise((res) => {
@@ -4263,6 +4369,7 @@
       }
       const dt = Math.min(0.05, deltaMs / 1000);
       Input.poll();
+      this.updateSkip(dt);
       if (this.ui?.modal) {
         this.ui.updateModal(dt);
         Input.endStep();

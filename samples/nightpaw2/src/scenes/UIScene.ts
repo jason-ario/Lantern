@@ -12,7 +12,7 @@ export const FONT = '"Palatino Linotype", "Book Antiqua", Palatino, Georgia, ser
 const W = SCREEN_W, H = SCREEN_H;
 const DY = 76; // dialogue box top: kept high so it never covers characters on the floor
 
-type Modal = { update(dt: number): void; close?(): void };
+type Modal = { update(dt: number): void; close?(): void; cancel?(): void };
 
 export class UIScene extends Phaser.Scene {
   game_: any;
@@ -142,6 +142,35 @@ export class UIScene extends Phaser.Scene {
     else this.tweens.add({ targets: this.bossGroup, alpha: 0, duration: 800 });
   }
 
+  // ------------------------------------------------------------------ cutscene skipping
+  get skipping(): boolean { return !!this.game_?.skipping; }
+  /** Tween that resolves when done; applied instantly while a cutscene is being skipped. */
+  tw(cfg: any): Promise<void> {
+    if (this.skipping) {
+      const targets = Array.isArray(cfg.targets) ? cfg.targets : [cfg.targets];
+      for (const t of targets) for (const k of ['alpha', 'x', 'y', 'scale']) if (cfg[k] !== undefined) t[k] = cfg[k];
+      return Promise.resolve();
+    }
+    return new Promise<void>((r) => this.tweens.add({ ...cfg, onComplete: () => r() }));
+  }
+  /** Drop whatever the cutscene is waiting on so the runner can fast-forward. */
+  cancelCutsceneUI() {
+    if (this.typing) { const r = this.typing.resolve; this.typing = null; r(); }
+    this.dlg.setAlpha(0);
+    const m = this.modal; if (m?.cancel) m.cancel();
+  }
+  skipUI(progress: number, visible: boolean) {
+    if (!this.skipText) {
+      this.skipText = this.add.text(W - 36, H - 30, '', { fontFamily: FONT, fontSize: '18px', color: '#b8b0d0' }).setOrigin(1, 1).setDepth(1200).setAlpha(0);
+      this.skipBar = this.add.rectangle(W - 36, H - 22, 150, 3, 0xffcf7a).setOrigin(1, 0.5).setDepth(1200).setAlpha(0);
+    }
+    const label = Input.usingPad ? 'Hold START to skip' : 'Hold ESC to skip';
+    if (this.skipText.text !== label) this.skipText.setText(label);
+    this.skipText.setAlpha(visible ? 0.45 + progress * 0.55 : 0);
+    this.skipBar.setAlpha(visible && progress > 0 ? 1 : 0).setScale(progress, 1);
+  }
+  skipText: any; skipBar: any;
+
   hint(text: string, ms = 4000) {
     const t = this.add.text(W / 2, H - 70, text, { fontFamily: FONT, fontSize: '22px', color: '#d8d0f0', fontStyle: 'italic', stroke: '#07060a', strokeThickness: 5 }).setOrigin(0.5).setAlpha(0).setDepth(700);
     this.tweens.add({ targets: t, alpha: 1, duration: 600, yoyo: true, hold: ms, onComplete: () => t.destroy() });
@@ -157,7 +186,7 @@ export class UIScene extends Phaser.Scene {
     if (color) this.fadeRect.setFillStyle(Phaser.Display.Color.HexStringToColor(color).color);
     else this.fadeRect.setFillStyle(0x000000);
     this.tweens.killTweensOf(this.fadeRect);
-    if (ms <= 0) { this.fadeRect.setAlpha(to); return Promise.resolve(); }
+    if (ms <= 0 || this.skipping) { this.fadeRect.setAlpha(to); return Promise.resolve(); }
     return new Promise<void>((res) => {
       this.tweens.add({ targets: this.fadeRect, alpha: to, duration: ms, onComplete: () => res() });
     });
@@ -184,6 +213,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   say(who: string, text: string, opts: any = {}) {
+    if (this.skipping) return Promise.resolve();
     const sp = World.speakers[who] ?? { name: who, pitch: 400 };
     this.dlgName.setText(sp.name ?? '').setColor(sp.color ?? '#ffcf7a');
     if (sp.portrait) this.dlgPortrait.setTexture(sp.portrait).setVisible(true); else this.dlgPortrait.setVisible(false);
@@ -202,18 +232,20 @@ export class UIScene extends Phaser.Scene {
     const txt = this.add.text(W / 2, H / 2, '', { fontFamily: FONT, fontSize: '30px', color: '#e8e2ff', fontStyle: 'italic', align: 'center', wordWrap: { width: W - 300 }, lineSpacing: 10 }).setOrigin(0.5).setAlpha(0).setDepth(1001);
     for (const line of lines) {
       txt.setText(line);
-      await new Promise<void>((r) => this.tweens.add({ targets: txt, alpha: 1, duration: 700, onComplete: () => r() }));
+      await this.tw({ targets: txt, alpha: 1, duration: 700 });
       await this.waitConfirm(opts.auto ?? 0);
-      await new Promise<void>((r) => this.tweens.add({ targets: txt, alpha: 0, duration: 500, onComplete: () => r() }));
+      await this.tw({ targets: txt, alpha: 0, duration: 500 });
     }
     txt.destroy();
   }
 
   /** Wait for a confirm press (or `auto` ms). Uses a modal so the world pauses. */
   waitConfirm(auto = 0) {
+    if (this.skipping) return Promise.resolve();
     return new Promise<void>((res) => {
       let t = 0;
       this.modal = {
+        cancel: () => { this.modal = null; res(); },
         update: (dt) => {
           t += dt;
           if ((t > 0.25 && (Input.pressed('confirm') || Input.pressed('attack'))) || (auto && t * 1000 > auto)) { this.modal = null; res(); }
@@ -236,7 +268,7 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: c, alpha: 1, duration: 500 });
     this.tweens.add({ targets: glow, scale: 1.5, alpha: 0.5, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     await this.waitConfirm();
-    await new Promise<void>((r) => this.tweens.add({ targets: c, alpha: 0, duration: 400, onComplete: () => r() }));
+    await this.tw({ targets: c, alpha: 0, duration: 400 });
     c.destroy();
   }
 
@@ -252,14 +284,14 @@ export class UIScene extends Phaser.Scene {
     c.add([bg, ...(pic ? [pic] : []), glow, shade, t1, t2]);
     this.tweens.add({ targets: c, alpha: 1, duration: 1200 });
     this.tweens.add({ targets: shade, y: 240, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    await sleep(this, 1000);
+    if (!this.skipping) await sleep(this, 1000);
     for (const line of lines) {
       t2.setAlpha(0).setText(line);
-      await new Promise<void>((r) => this.tweens.add({ targets: t2, alpha: 1, duration: 900, onComplete: () => r() }));
+      await this.tw({ targets: t2, alpha: 1, duration: 900 });
       await this.waitConfirm();
-      await new Promise<void>((r) => this.tweens.add({ targets: t2, alpha: 0, duration: 500, onComplete: () => r() }));
+      await this.tw({ targets: t2, alpha: 0, duration: 500 });
     }
-    await new Promise<void>((r) => this.tweens.add({ targets: c, alpha: 0, duration: 1000, onComplete: () => r() }));
+    await this.tw({ targets: c, alpha: 0, duration: 1000 });
     c.destroy();
   }
 
@@ -287,30 +319,32 @@ export class UIScene extends Phaser.Scene {
       const txt = this.add.text(W / 2, opts.card ? H / 2 - 30 : H - 110, '', { fontFamily: FONT, fontSize: '28px', color: '#f0ecff', fontStyle: 'italic', align: 'center', stroke: '#000000', strokeThickness: 6, wordWrap: { width: W - 260 }, lineSpacing: 8 }).setOrigin(0.5, opts.card ? 0 : 0.5);
       if (title) c.add(title);
       c.add(txt);
-      await new Promise<void>((r) => this.tweens.add({ targets: [img, ...(title ? [title] : [])], alpha: 1, duration: 1200, onComplete: () => r() }));
+      await this.tw({ targets: [img, ...(title ? [title] : [])], alpha: 1, duration: 1200 });
       this.tweens.add({ targets: img, scale: pan[1], x: W / 2 + (pan[2] ?? 0), y: H / 2 + (pan[3] ?? 0), duration: 9000, ease: 'Sine.easeInOut' });
       const t0 = this.time.now;
       const lines: string[] = pg.lines ?? [];
       if (opts.card) { txt.setText(lines.join('\n')); txt.setAlpha(0); this.tweens.add({ targets: txt, alpha: 1, duration: 1400 }); }
       for (let i = 0; !opts.card && i < lines.length; i++) {
         txt.setAlpha(0).setText(lines[i]);
-        await new Promise<void>((r) => this.tweens.add({ targets: txt, alpha: 1, duration: 700, onComplete: () => r() }));
+        await this.tw({ targets: txt, alpha: 1, duration: 700 });
         const res = await this.waitStory(rain, moth, t0);
         if (res === 'skip') { skip = true; break; }
-        if (i < lines.length - 1) await new Promise<void>((r) => this.tweens.add({ targets: txt, alpha: 0, duration: 350, onComplete: () => r() }));
+        if (i < lines.length - 1) await this.tw({ targets: txt, alpha: 0, duration: 350 });
       }
       if (opts.card || !lines.length) { const res = await this.waitStory(rain, moth, t0); if (res === 'skip') skip = true; }
-      await new Promise<void>((r) => this.tweens.add({ targets: c.list.filter((o: any) => o !== black), alpha: 0, duration: 700, onComplete: () => r() }));
+      await this.tw({ targets: c.list.filter((o: any) => o !== black), alpha: 0, duration: 700 });
       c.list.filter((o: any) => o !== black).forEach((o: any) => o.destroy());
     }
-    // reveal the game underneath
-    this.fadeRect.setAlpha(1);
+    // hand over to the game underneath on black (the cutscene fades in); skipped runs fade themselves
+    if (!this.skipping) this.fadeRect.setAlpha(1);
     c.destroy();
   }
   private waitStory(rain: any, moth: any, t0: number) {
+    if (this.skipping) return Promise.resolve('skip' as const);
     return new Promise<'next' | 'skip'>((res) => {
       let t = 0;
       this.modal = {
+        cancel: () => { this.modal = null; res('skip'); },
         update: (dt) => {
           t += dt;
           if (rain) { rain.tilePositionY -= dt * 900; rain.tilePositionX += dt * 280; }

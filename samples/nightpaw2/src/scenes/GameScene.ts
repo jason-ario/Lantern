@@ -226,17 +226,39 @@ export class GameScene extends Phaser.Scene implements Ctx, CutsceneHost {
   async runCutscene(id: string, opts: { entity?: Entity } = {}) {
     if (this.inCutscene) { this.time.delayedCall(100, () => this.runCutscene(id, opts)); return; }
     this.inCutscene = true;
+    this.skipping = false; this.skipHold = 0;
+    this.skipSignal = new Promise<void>((r) => { this.resolveSkip = r; });
     const P = this.player;
     P.locked = true; P.scripted = null; P.atkT = 0; P.dashT = 0;
     this.ui.prompt(null);
     try { await runCutscene(this, id, opts); }
     catch (e) { console.error('cutscene failed', id, e); }
-    P.locked = false; P.scripted = null;
+    P.locked = false; P.scripted = null; P.hidden = false;
+    if (this.skipping) { this.snapCamera(); this.ui.fade(0, 250); }
+    this.skipping = false; this.ui.skipUI(0, false);
     this.ui.letterbox(false);
     this.camFocus = null;
     this.inCutscene = false;
     Input.swallow();
     this.saveNow();
+  }
+  skipping = false;
+  skipHold = 0;
+  skipSignal: Promise<void> = Promise.resolve();
+  resolveSkip: () => void = () => {};
+  /** Holding pause during a cutscene fast-forwards it. */
+  updateSkip(dt: number) {
+    if (!this.inCutscene || this.skipping) return;
+    this.skipHold = Input.held('pause') ? this.skipHold + dt : Math.max(0, this.skipHold - dt * 3);
+    const HOLD = 0.6;
+    this.ui.skipUI(Math.min(1, this.skipHold / HOLD), true);
+    if (this.skipHold >= HOLD) {
+      this.skipping = true;
+      this.ui.skipUI(0, false);
+      this.ui.cancelCutsceneUI();
+      this.tweens.killTweensOf(this.camFocus);
+      this.resolveSkip();
+    }
   }
   cam = {
     focus: (x: number, y: number, ms: number) => new Promise<void>((res) => {
@@ -293,6 +315,7 @@ export class GameScene extends Phaser.Scene implements Ctx, CutsceneHost {
     }
     const dt = Math.min(0.05, deltaMs / 1000);
     Input.poll();
+    this.updateSkip(dt);
     if (this.ui?.modal) { this.ui.updateModal(dt); Input.endStep(); this.renderAll(dt); return; }
     if (!this.inCutscene && !this.player.dead && Input.pressed('pause')) { this.ui.openPause(); Input.endStep(); return; }
     if (!this.inCutscene && !this.player.dead && Input.pressed('map')) { this.ui.openMap(); Input.endStep(); return; }

@@ -37,6 +37,72 @@ const results = [];
 function check(name, ok, info = '') { results.push({ name, ok, info }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`); }
 
 const scenarios = {
+  // Losing to the Warden and coming back must restart the fight (with a short intro).
+  async rematch(browser) {
+    const T = await open(browser, '?room=warden_hall&x=3&y=16&abilities=dash');
+    await T.adv(0.3);
+    await T.hold('ArrowRight', 1.2);
+    await T.finishCutscene();
+    let boss = await T.page.evaluate(() => window.__NP.ents.find((e) => e.name === 'The Hollow Warden')?.state);
+    check('first fight starts', boss && boss !== 'dormant', boss);
+    await T.page.evaluate(() => window.__NP.killPlayer());
+    await T.adv(4);
+    let s = await T.state();
+    check('respawned after losing', !s.dead && s.room !== 'warden_hall', JSON.stringify(s));
+    await T.teleport('warden_hall', 3, 16); await T.adv(0.5);
+    await T.hold('ArrowRight', 1.2);
+    s = await T.state();
+    check('rematch intro plays again', s.cut, JSON.stringify(s));
+    await T.finishCutscene();
+    boss = await T.page.evaluate(() => window.__NP.ents.find((e) => e.name === 'The Hollow Warden')?.state);
+    check('rematch fight starts', boss && boss !== 'dormant', boss);
+    const gate = await T.page.evaluate(() => window.__NP.room.grid[15][1]);
+    check('gate closes for the rematch', gate === '#');
+    await T.page.close();
+  },
+
+  // Holding Esc skips cutscenes but keeps their story effects.
+  async skip(browser) {
+    const holdSkip = async (T) => { await T.page.keyboard.down('Escape'); await T.adv(1.0); await T.page.keyboard.up('Escape'); await T.adv(0.5); };
+    let T = await open(browser, '?room=ashen_gate&x=1&y=14');
+    await T.adv(0.3);
+    await T.hold('ArrowRight', 0.5);
+    let s = await T.state();
+    check('Tallow cutscene started', s.cut, JSON.stringify(s));
+    await holdSkip(T);
+    s = await T.state();
+    check('skip ends the conversation', !s.cut && !s.modal && s.flags.includes('met_tallow'), JSON.stringify(s));
+    const dlg = await T.page.evaluate(() => window.__NP.ui.dlg.alpha);
+    check('dialogue box hidden after skip', dlg === 0, String(dlg));
+    await T.page.close();
+
+    T = await open(browser, '?room=warden_hall&x=12&y=16&abilities=dash&flags=warden_met');
+    await T.adv(0.3);
+    await T.page.evaluate(() => { const g = window.__NP; g.bossActive = true; g.ents.find((e) => e.name === 'The Hollow Warden').wake(); });
+    await T.adv(1.6);
+    await T.page.evaluate(() => { const b = window.__NP.ents.find((e) => e.name === 'The Hollow Warden'); for (let i = 0; i < 40; i++) b.onHit(1, 1, 'side'); });
+    await T.adv(3);
+    s = await T.state();
+    check('defeat cutscene running before skip', s.cut, JSON.stringify(s));
+    await holdSkip(T);
+    s = await T.state();
+    check('skipping the Warden aftermath still gives wings', !s.cut && s.abilities.includes('wings') && s.flags.includes('got_wings'), JSON.stringify(s));
+    await T.page.close();
+
+    // the prologue storybook from a new game
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await page.goto(BASE);
+    await page.waitForTimeout(4000);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.__NP && window.__NP.started && window.__NP.inCutscene, null, { timeout: 60000 });
+    const adv = (sec) => page.evaluate((s) => { const g = window.__NP.sys.game; let t = performance.now(); for (let i = 0; i < s * 60; i++) { t += 1000 / 60; g.headlessStep(t, 1000 / 60); } }, sec);
+    await adv(2);
+    await page.keyboard.down('Escape'); await adv(1.0); await page.keyboard.up('Escape'); await adv(1.5);
+    const st = await page.evaluate(() => ({ cut: window.__NP.inCutscene, hidden: window.__NP.player.hidden, fade: window.__NP.ui.fadeRect.alpha, intro: !!window.__NP_GAME.save.flags.intro_done, room: window.__NP.room.id, modal: !!window.__NP.ui.modal }));
+    check('prologue can be skipped', !st.cut && !st.hidden && st.fade < 0.05 && st.intro && !st.modal, JSON.stringify(st));
+    await page.close();
+  },
+
   // Secrets & backtracking: cellar wall, frozen hollow shade, crossroads ladder, wing-only shade.
   async explore(browser) {
     let T = await open(browser, '?room=coat_cellar&x=4&y=14&abilities=needle,dash');

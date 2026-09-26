@@ -10,6 +10,8 @@ import { World } from '../world/world';
 import type { Step } from '../content/types';
 
 export interface CutsceneHost {
+  skipping: boolean;
+  skipSignal: Promise<void>;
   scene: any; ui: any; player: any; room: any; ents: any[];
   cam: { focus(x: number, y: number, ms: number): Promise<void>; release(ms?: number): void };
   shake(n: number): void;
@@ -123,11 +125,23 @@ const STEPS: Record<string, StepFn> = {
   },
 };
 
+// While skipping, presentation-only steps are dropped; everything that changes the game
+// (flags, abilities, lives, positions, music) still runs, so a skipped cutscene leaves the
+// world in exactly the state the full one would.
+const PRESENTATION = new Set(['say', 'narrate', 'wait', 'emote', 'shake', 'sfx', 'item', 'memory', 'storybook', 'title', 'camera', 'waitLand', 'hint', 'jump', 'face']);
+
 export async function runSteps(h: CutsceneHost, steps: Step[], ctx: RunCtx) {
   for (const s of steps) {
     const fn = STEPS[s.do];
     if (!fn) { console.warn('Unknown cutscene step', s.do); continue; }
-    await fn(h, s, ctx);
+    if (h.skipping) {
+      if (PRESENTATION.has(s.do)) continue;
+      if (s.do === 'walk') { const P = h.player; const tx = s.to !== undefined ? (h.room.x + s.to) * T : P.x + (s.dx ?? 0) * T; P.x = tx; P.scripted = null; if (s.face) P.face = s.face; continue; }
+      await fn(h, s, ctx);
+      continue;
+    }
+    // Long steps race the skip signal so a skip takes effect immediately.
+    await (s.do === 'end' ? fn(h, s, ctx) : Promise.race([fn(h, s, ctx), h.skipSignal]));
   }
 }
 

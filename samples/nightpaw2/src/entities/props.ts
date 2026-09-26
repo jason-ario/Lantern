@@ -243,11 +243,14 @@ register('decal', (g, d, x, y) => (visible(d) ? new Decal(g, d, x, y) : null));
 
 // ------------------------------------------------------------------ triggers (cutscenes, area exits)
 class Trigger extends Entity {
+  inside = false;
   // The marker is the bottom-left tile; the zone extends right `w` tiles and up `h` tiles.
   constructor(g: Ctx, d: EntityDef, x: number, y: number) { super(g, d, x, y); this.w = (d.w ?? 1) * T; this.h = (d.h ?? 1) * T; this.y = y + T - this.h; }
   update() {
-    if (this.g.inCutscene || this.g.player.dead) return;
-    if (!overlap(this.g.player, this)) return;
+    if (this.g.inCutscene || this.g.player.dead || (this.g as any).bossActive) return;
+    if (!overlap(this.g.player, this)) { this.inside = false; return; }
+    if (this.inside) return; // repeatable triggers fire once per entry, not every frame
+    this.inside = true;
     if (!Game.test(this.def.if)) return;
     if (this.def.once !== false) { if (Game.taken.has(this.id)) return; Game.taken.add(this.id); }
     this.g.runCutscene(this.def.cutscene, { entity: this });

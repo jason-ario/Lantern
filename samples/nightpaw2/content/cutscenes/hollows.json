@@ -431,81 +431,135 @@
     "id": "warden_intro",
     "steps": [
       {
-        "do": "letterbox"
-      },
-      {
-        "do": "music",
-        "stop": true
-      },
-      {
-        "do": "walk",
-        "to": 11,
-        "face": 1
-      },
-      {
-        "do": "wait",
-        "ms": 400
-      },
-      {
-        "do": "camera",
-        "to": {
-          "x": 22,
-          "y": 14
-        },
-        "ms": 1400
-      },
-      {
-        "do": "sfx",
-        "id": "gate"
-      },
-      {
-        "do": "shake",
-        "amount": 3
-      },
-      {
-        "do": "wait",
-        "ms": 700
-      },
-      {
-        "do": "say",
-        "who": "warden",
-        "lines": [
-          "...FALLING...",
-          "SOMETHING... ELSE... FALLING...",
-          "MUST... CATCH..."
+        "do": "if",
+        "cond": "warden_met",
+        "then": [
+          {
+            "do": "letterbox"
+          },
+          {
+            "do": "music",
+            "stop": true
+          },
+          {
+            "do": "camera",
+            "to": {
+              "x": 22,
+              "y": 14
+            },
+            "ms": 700
+          },
+          {
+            "do": "say",
+            "who": "warden",
+            "text": "...AGAIN... FALLING... AGAIN..."
+          },
+          {
+            "do": "boss",
+            "action": "wake",
+            "id": "warden"
+          },
+          {
+            "do": "sfx",
+            "id": "roar"
+          },
+          {
+            "do": "shake",
+            "amount": 10
+          },
+          {
+            "do": "camera",
+            "release": true,
+            "ms": 500
+          },
+          {
+            "do": "letterbox",
+            "on": false
+          }
+        ],
+        "else": [
+          {
+            "do": "flag",
+            "set": "warden_met"
+          },
+          {
+            "do": "letterbox"
+          },
+          {
+            "do": "music",
+            "stop": true
+          },
+          {
+            "do": "walk",
+            "to": 11,
+            "face": 1
+          },
+          {
+            "do": "wait",
+            "ms": 400
+          },
+          {
+            "do": "camera",
+            "to": {
+              "x": 22,
+              "y": 14
+            },
+            "ms": 1400
+          },
+          {
+            "do": "sfx",
+            "id": "gate"
+          },
+          {
+            "do": "shake",
+            "amount": 3
+          },
+          {
+            "do": "wait",
+            "ms": 700
+          },
+          {
+            "do": "say",
+            "who": "warden",
+            "lines": [
+              "...FALLING...",
+              "SOMETHING... ELSE... FALLING...",
+              "MUST... CATCH..."
+            ]
+          },
+          {
+            "do": "boss",
+            "action": "wake",
+            "id": "warden"
+          },
+          {
+            "do": "sfx",
+            "id": "roar"
+          },
+          {
+            "do": "shake",
+            "amount": 12
+          },
+          {
+            "do": "title",
+            "name": "The Hollow Warden",
+            "sub": "Keeper of the Deep",
+            "boss": true
+          },
+          {
+            "do": "wait",
+            "ms": 1200
+          },
+          {
+            "do": "camera",
+            "release": true,
+            "ms": 700
+          },
+          {
+            "do": "letterbox",
+            "on": false
+          }
         ]
-      },
-      {
-        "do": "boss",
-        "action": "wake",
-        "id": "warden"
-      },
-      {
-        "do": "sfx",
-        "id": "roar"
-      },
-      {
-        "do": "shake",
-        "amount": 12
-      },
-      {
-        "do": "title",
-        "name": "The Hollow Warden",
-        "sub": "Keeper of the Deep",
-        "boss": true
-      },
-      {
-        "do": "wait",
-        "ms": 1200
-      },
-      {
-        "do": "camera",
-        "release": true,
-        "ms": 700
-      },
-      {
-        "do": "letterbox",
-        "on": false
       }
     ]
   },
