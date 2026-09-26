@@ -1,6 +1,7 @@
 // Creator portal (prototype): package → metadata → publish → live store page.
 import { api } from '../api.js';
-import { applyUserState, loadCatalog } from '../state.js';
+import { applyUserState, loadCatalog, state } from '../state.js';
+import { go } from '../nav.js';
 import { esc, price, bytes, icons, toast, $, $$ } from '../ui.js';
 
 const PRICES = [0, 299, 499, 799, 999, 1499, 1999];
@@ -14,7 +15,34 @@ const readAs = (file, how) => new Promise((resolve, reject) => {
 });
 const b64 = (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
 
+function renderLocked(root) {
+  const c = state.creator;
+  root.innerHTML = `<div class="page publish">
+    <div class="pub-head"><div><div class="eyebrow">Lantern Creator</div><h1>Publish a web game</h1>
+    <p class="muted">Upload an HTML/JS game package and it gets a live store page instantly.</p></div></div>
+    <div class="panel pub-lock">
+      ${c.enabled ? `<h3>Creator access</h3>
+      <p class="muted">Publishing on this server is limited to creators. Enter the creator password to continue.</p>
+      <form id="loginForm" class="pub-lock-form">
+        <input type="password" name="password" placeholder="Creator password" autocomplete="current-password" required>
+        <button class="btn btn-buy">Unlock publishing</button>
+      </form>` : `<h3>Publishing is turned off</h3>
+      <p class="muted">This server has no creator password configured. The owner can enable publishing by setting the <code>ADMIN_PASSWORD</code> environment variable and restarting.</p>`}
+    </div>
+  </div>`;
+  const f = root.querySelector('#loginForm');
+  if (f) f.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = f.querySelector('button'); btn.disabled = true;
+    try { applyUserState(await api.admin.login(f.elements.password.value)); toast('Creator access unlocked', { kind: 'ok' }); go('/publish'); }
+    catch (err) { btn.disabled = false; toast(esc(err.message), { kind: 'error' }); f.elements.password.select(); }
+  };
+  return null;
+}
+
 export async function render(root) {
+  applyUserState(await api.state());
+  if (!state.creator.admin) return renderLocked(root);
   const form = { pkg: null, report: null, cover: null, shots: [] };
   root.innerHTML = `<div class="page publish">
     <div class="pub-head">

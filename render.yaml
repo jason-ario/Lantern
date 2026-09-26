@@ -1,0 +1,21 @@
+# Render Blueprint — one web service with a persistent disk for all Lantern data.
+# Render → New → Blueprint → pick this repo. You'll be asked for ADMIN_PASSWORD.
+services:
+  - type: web
+    name: lantern
+    runtime: node
+    plan: starter            # a paid instance is required for a persistent disk
+    buildCommand: npm install
+    startCommand: node server/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_PASSWORD
+        sync: false          # prompted on creation; never committed to git
+    disk:
+      name: lantern-data
+      mountPath: /var/data
+      sizeGB: 1

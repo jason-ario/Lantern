@@ -4,6 +4,7 @@ import { api } from './api.js';
 const listeners = new Set();
 export const state = {
   user: null,
+  creator: { admin: false, passwordRequired: true, enabled: false },
   owned: new Set(),
   wishlist: new Set(),
   games: [],
@@ -17,6 +18,7 @@ const emit = () => listeners.forEach((fn) => fn(state));
 
 export function applyUserState(s) {
   state.user = s.user;
+  if (s.creator) state.creator = s.creator;
   state.owned = new Set(s.owned);
   state.wishlist = new Set(s.wishlist);
   emit();

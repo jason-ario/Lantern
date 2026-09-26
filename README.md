@@ -9,6 +9,10 @@ npm run reset                 # wipe data/ (re-seeded on next start)
 
 Everything runs from one process. `data/db.json` is created on first start.
 
+Locally, publishing and site reset are open to you. Every browser gets its own guest account; set `ACCOUNT_MODE=single` for the old shared "Jason" demo account.
+
+**Deploying:** see [DEPLOY.md](DEPLOY.md). In short: Render Web Service, start command `node server/index.js`, and an `ADMIN_PASSWORD` environment variable. For data that survives restarts, also add a disk and set `DATA_DIR`.
+
 ## Architecture
 
 ```
@@ -93,7 +97,7 @@ Everything must ship inside the zip (no CDN scripts or web fonts). Use `Platform
 
 ## Compromises made for the MVP
 
-- **Mock auth**: every browser is auto-signed-in as one seeded user ("Jason"). No real login.
+- **Guest accounts**: every browser gets an automatic guest account (cookie-based). There's no real sign-in, and creator/admin access is a single shared password (`ADMIN_PASSWORD`).
 - **Mock payments**: a "Lantern Wallet" confirms instantly. Seeded reviews and ratings are placeholder data.
 - **Same host for games and platform.** Isolation relies on sandbox plus CSP. Production should serve packages from a separate registrable domain (a `*.lanterncontent` style domain) as defence in depth.
 - A sandboxed iframe may share a process with the platform, so a runaway game loop can make the store UI janky. On desktop each game gets its own webview process.

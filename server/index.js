@@ -9,15 +9,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as db from './db.js';
 import { seed } from './seed.js';
-import { handleApi, HttpError, USER_MEDIA_DIR } from './api.js';
-import { PACKAGES_DIR } from './packages.js';
+import { handleApi, HttpError } from './api.js';
+import { packageDir } from './packages.js';
+import { PORT, DB_FILE, DATA_DIR, USER_MEDIA_DIR, TRUST_PROXY, IS_PROD, ADMIN_OPEN, ADMIN_PASSWORD, ACCOUNT_MODE } from './config.js';
 
-const PORT = Number(process.env.PORT ?? 5173);
 const ROOT = path.resolve('.');
 const PUBLIC = path.join(ROOT, 'public');
 const SDK = path.join(ROOT, 'sdk');
 
-db.open(path.join(ROOT, 'data/db.json'), seed);
+db.open(DB_FILE, seed);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -82,11 +82,18 @@ function readBody(req, limit) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const origin = `http://${req.headers.host}`;
+  // Behind a hosting proxy the public scheme/IP arrive in X-Forwarded-* headers.
+  const proto = TRUST_PROXY ? String(req.headers['x-forwarded-proto'] ?? 'http').split(',')[0].trim() : 'http';
+  const secure = proto === 'https';
+  const ip = TRUST_PROXY ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress : req.socket.remoteAddress;
+  const origin = `${secure ? 'https' : 'http'}://${req.headers.host}`;
   const url = new URL(req.url, origin);
   const p = decodeURIComponent(url.pathname);
 
   try {
+    if (p === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
+    if (secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+
     // ---------- API ----------
     if (p.startsWith('/api/')) {
       // CSRF / untrusted-frame defence: API calls must come from platform JS
@@ -97,7 +104,7 @@ const server = http.createServer(async (req, res) => {
         throw new HttpError(403, 'Forbidden');
       }
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readBody(req, 80e6) : null;
-      const result = await handleApi(req, res, url, body);
+      const result = await handleApi(req, res, url, body, { ip, secure });
       const json = JSON.stringify(result ?? null);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       res.end(json);
@@ -107,9 +114,10 @@ const server = http.createServer(async (req, res) => {
     // ---------- Game packages (untrusted, immutable, versioned) ----------
     if (p.startsWith('/games/')) {
       const rel = p.slice('/games/'.length);
-      const [gameId, version] = rel.split('/');
-      const file = safeJoin(PACKAGES_DIR, rel);
-      if (!file || !gameId || !version) { res.writeHead(404); res.end(); return; }
+      const [gameId, version, ...rest] = rel.split('/');
+      const okSeg = (x) => x && /^[A-Za-z0-9._-]+$/.test(x) && x !== '..' && x !== '.';
+      const file = okSeg(gameId) && okSeg(version) ? safeJoin(packageDir(gameId, version), rest.join('/')) : null;
+      if (!file) { res.writeHead(404); res.end(); return; }
       sendFile(res, file, {
         'Content-Security-Policy': gameCsp(origin, `${gameId}/${version}`),
         // Versioned URLs never change → cache forever. This is what makes relaunches instant on web.
@@ -157,7 +165,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`Lantern running at http://localhost:${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Lantern running at http://localhost:${PORT}`);
+  console.log(`  data: ${DATA_DIR} · accounts: ${ACCOUNT_MODE} · publishing: ${ADMIN_OPEN ? 'open (local dev)' : ADMIN_PASSWORD ? 'password protected' : 'disabled (set ADMIN_PASSWORD)'}${IS_PROD ? ' · production' : ''}`);
+});
 const shutdown = () => { db.flush(); process.exit(0); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

@@ -10,14 +10,18 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 
-export const PACKAGES_DIR = path.resolve('packages');
+import { BUILTIN_PACKAGES_DIR, PUBLISHED_PACKAGES_DIR } from './config.js';
+export { PUBLISHED_PACKAGES_DIR };
 const MAX_PACKAGE_BYTES = 50 * 1024 * 1024;
 const MAX_FILES = 2000;
 const SAFE_PATH = /^[A-Za-z0-9._\-/ ]+$/;
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 
+// Builds uploaded through Publish live under DATA_DIR; builds shipped with the code under ./packages.
 export function packageDir(gameId, version) {
-  return path.join(PACKAGES_DIR, gameId, version);
+  const published = path.join(PUBLISHED_PACKAGES_DIR, gameId, version);
+  if (fs.existsSync(published)) return published;
+  return path.join(BUILTIN_PACKAGES_DIR, gameId, version);
 }
 
 export function hashDir(dir) {
@@ -140,8 +144,8 @@ export function inspectPackage(filename, buf) {
 }
 
 export function installPackage(gameId, version, entries, manifest) {
-  const dir = packageDir(gameId, version);
-  if (fs.existsSync(dir)) throw new Error(`Version ${version} already exists — versions are immutable, bump the version`);
+  const dir = path.join(PUBLISHED_PACKAGES_DIR, gameId, version);
+  if (fs.existsSync(dir) || fs.existsSync(path.join(BUILTIN_PACKAGES_DIR, gameId, version))) throw new Error(`Version ${version} already exists — versions are immutable, bump the version`);
   for (const e of entries) {
     const target = path.join(dir, e.name);
     if (!target.startsWith(dir + path.sep)) throw new Error('Path traversal rejected');

@@ -4,6 +4,7 @@ import path from 'node:path';
 import * as db from './db.js';
 import { hashDir, packageDir, readManifest } from './packages.js';
 import { developers, games, placeholderAchievements } from '../catalog/games.js';
+import { ACCOUNT_MODE } from './config.js';
 
 export const DEFAULT_USER_ID = 'usr_jason';
 const PLACEHOLDER = { dir: '_placeholder', version: '1.0.0' };
@@ -55,6 +56,11 @@ export function seed() {
     defs.forEach((a) => db.insert('achievements', { id: `${g.id}:${a.id}`, gameId: g.id, key: a.id, name: a.name, description: a.description }));
   }
 
+  if (ACCOUNT_MODE === 'single') seedDemoUser();
+}
+
+// The original single-account demo ("Jason" with some play history). Only used with ACCOUNT_MODE=single.
+export function seedDemoUser() {
   db.insert('users', {
     id: DEFAULT_USER_ID, username: 'jason', displayName: 'Jason', avatarHue: 32,
     memberSince: '2024-03-12T10:00:00.000Z', country: 'GE',

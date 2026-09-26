@@ -434,6 +434,11 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ---------- publish ---------- */
 .publish { padding-top: 24px; }
+.pub-lock { max-width: 520px; }
+.pub-lock p { margin: 0 0 14px; }
+.pub-lock code { font-family: var(--mono); color: var(--amber-2); }
+.pub-lock-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.pub-lock-form input { flex: 1; min-width: 200px; }
 .pub-head { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: end; padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .eyebrow { color: var(--amber); font: 600 12px var(--display); letter-spacing: .2em; text-transform: uppercase; margin-bottom: 6px; }
 .pub-head h1 { font: 600 36px/1 var(--display); margin-bottom: 8px; }

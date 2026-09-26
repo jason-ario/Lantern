@@ -165,6 +165,7 @@ await shot('08-tidewater-restored');
 await quitGame();
 
 // ---- wishlist persistence ----
+await api('PUT', '/api/wishlist/kepler');
 await page.goto(`${BASE}/app/pinewatch`);
 await page.click('#wishHead [data-wish]');
 await page.waitForSelector('#wishHead .btn-wish-on');
@@ -213,7 +214,7 @@ check('Direct /play URL launches game', true);
 await p2.close();
 
 // ---- mobile ----
-const m = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const m = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: await ctx.storageState() }); // same guest account
 const mp = await m.newPage();
 mp.on('pageerror', (e) => errors.push(`[pageerror mobile] ${e.message}`));
 for (const [name, path, sel] of [['m-store', '/store', '#featMain .logo'], ['m-game', '/app/tidewater', '.buy-box'], ['m-library', '/library', '.lib-card'], ['m-library-detail', '/library/voidrunner', '.ld-bar'], ['m-wishlist', '/wishlist', '.wish-row'], ['m-profile', '/profile', '.pf-stats'], ['m-publish', '/publish', '.drop']]) {

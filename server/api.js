@@ -6,11 +6,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import * as db from './db.js';
-import { seed, createVersion, DEFAULT_USER_ID } from './seed.js';
-import { inspectPackage, installPackage, PACKAGES_DIR } from './packages.js';
+import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
+import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
+import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE } from './config.js';
 
-export const USER_MEDIA_DIR = path.resolve('data/media');
+export { USER_MEDIA_DIR };
 const MAX_SAVE_BYTES = 256 * 1024;
 const MAX_SAVE_KEYS = 64;
 const SAVE_KEY_RE = /^[A-Za-z0-9_.-]{1,64}$/;
@@ -20,18 +21,54 @@ export class HttpError extends Error {
 }
 const fail = (status, msg) => { throw new HttpError(status, msg); };
 
-// ---------------- identity (mock) ----------------
-// Prototype: every browser is auto-signed-in as the seeded user. The session
-// token lives in an HttpOnly, SameSite=Strict cookie scoped to /api so neither
-// platform JS nor game code can read it.
-export function authenticate(req, res) {
+// ---------------- rate limiting (in-memory, per IP) ----------------
+const buckets = new Map();
+function limit(key, max, windowMs) {
+  const now = Date.now();
+  const b = buckets.get(key);
+  if (!b || now - b.start > windowMs) { buckets.set(key, { start: now, n: 1 }); return; }
+  if (++b.n > max) fail(429, 'Too many requests — please wait a few minutes');
+}
+setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.start > 3600e3) buckets.delete(k); }, 600e3).unref();
+
+// ---------------- identity ----------------
+// Guest accounts: the first visit from a browser creates a guest user. The
+// session token lives in an HttpOnly, SameSite=Strict cookie scoped to /api, so
+// neither platform JS nor game code can read it. (Real sign-in comes later.)
+const ADJ = ['Amber', 'Quiet', 'Lucky', 'Velvet', 'Ember', 'Misty', 'Brave', 'Hollow', 'Silver', 'Crimson', 'Mossy', 'Starlit', 'Wandering', 'Sleepy', 'Clever', 'Midnight'];
+const NOUN = ['Moth', 'Heron', 'Fox', 'Lantern', 'Otter', 'Raven', 'Comet', 'Wisp', 'Badger', 'Kestrel', 'Sparrow', 'Tide', 'Pine', 'Owl', 'Cat', 'Ember'];
+function createGuest() {
+  const n = crypto.randomInt(ADJ.length * NOUN.length);
+  return db.insert('users', {
+    id: db.id('usr'), username: `guest-${crypto.randomBytes(3).toString('hex')}`,
+    displayName: `${ADJ[n % ADJ.length]} ${NOUN[Math.floor(n / ADJ.length)]}`,
+    avatarHue: crypto.randomInt(360), memberSince: db.now(), guest: true,
+  });
+}
+
+export function authenticate(req, res, ctx) {
   const sid = /(?:^|;\s*)lantern_sid=([a-f0-9]{48})/.exec(req.headers.cookie ?? '')?.[1];
   const sess = sid && db.find('authSessions', (s) => s.id === sid);
-  if (sess) return db.get('users', sess.userId);
+  const existing = sess && db.get('users', sess.userId);
+  if (existing) return { user: existing, session: sess };
+  let user;
+  if (ACCOUNT_MODE === 'single') {
+    user = db.get('users', DEFAULT_USER_ID);
+    if (!user) { seedDemoUser(); user = db.get('users', DEFAULT_USER_ID); }
+  } else {
+    limit(`guest:${ctx.ip}`, 30, 10 * 60e3);
+    user = createGuest();
+  }
   const newSid = crypto.randomBytes(24).toString('hex');
-  db.insert('authSessions', { id: newSid, userId: DEFAULT_USER_ID, createdAt: db.now() });
-  res.setHeader('Set-Cookie', `lantern_sid=${newSid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000`);
-  return db.get('users', DEFAULT_USER_ID);
+  const session = db.insert('authSessions', { id: newSid, userId: user.id, admin: false, createdAt: db.now() });
+  res.setHeader('Set-Cookie', `lantern_sid=${newSid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
+  return { user, session };
+}
+
+const isAdmin = (session) => ADMIN_OPEN || !!session?.admin;
+function requireAdmin(session) {
+  if (isAdmin(session)) return;
+  fail(403, ADMIN_PASSWORD ? 'Creator access required — enter the creator password on the Publish page' : 'Publishing is disabled on this server (no ADMIN_PASSWORD configured)');
 }
 
 // ---------------- helpers ----------------
@@ -71,9 +108,10 @@ function playStats(userId, gameId) {
   return { playtimeSeconds: seconds, lastPlayedAt: last, sessions: sessions.length, achievements: { unlocked, total } };
 }
 
-function userState(user) {
+function userState(user, session) {
   return {
-    user: { id: user.id, username: user.username, displayName: user.displayName, avatarHue: user.avatarHue, memberSince: user.memberSince },
+    user: { id: user.id, username: user.username, displayName: user.displayName, avatarHue: user.avatarHue, memberSince: user.memberSince, guest: !!user.guest },
+    creator: { admin: isAdmin(session), passwordRequired: !ADMIN_OPEN, enabled: ADMIN_OPEN || !!ADMIN_PASSWORD },
     owned: db.filter('ownerships', (o) => o.userId === user.id).map((o) => o.gameId),
     wishlist: db.filter('wishlists', (w) => w.userId === user.id).map((w) => w.gameId),
   };
@@ -83,7 +121,7 @@ function userState(user) {
 const routes = [];
 const route = (method, pattern, handler) => routes.push({ method, re: new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`), handler });
 
-route('GET', '/api/state', ({ user }) => userState(user));
+route('GET', '/api/state', ({ user, session }) => userState(user, session));
 
 route('GET', '/api/catalog', () => {
   const games = db.all('games').map(publicGame);
@@ -92,7 +130,7 @@ route('GET', '/api/catalog', () => {
   return { games, tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })) };
 });
 
-route('GET', '/api/games/:id', ({ user, params }) => {
+route('GET', '/api/games/:id', ({ user, session, params }) => {
   const g = requireGame(params.id);
   const unlocked = new Map(db.filter('userAchievements', (u) => u.userId === user.id && u.gameId === g.id).map((u) => [u.achievementId, u.unlockedAt]));
   return {
@@ -105,7 +143,7 @@ route('GET', '/api/games/:id', ({ user, params }) => {
 });
 
 // ----- commerce (mocked payment) -----
-route('POST', '/api/games/:id/purchase', ({ user, params, body }) => {
+route('POST', '/api/games/:id/purchase', ({ user, session, params, body }) => {
   const g = requireGame(params.id);
   if (g.status !== 'released' || !g.currentVersionId) fail(409, 'This game is not available for purchase yet');
   if (owns(user.id, g.id)) fail(409, 'You already own this game');
@@ -113,28 +151,28 @@ route('POST', '/api/games/:id/purchase', ({ user, params, body }) => {
   const ownership = db.insert('ownerships', { id: db.id('own'), userId: user.id, gameId: g.id, source: 'purchase', pricePaidCents: g.priceCents, orderId: db.id('ord'), acquiredAt: db.now() });
   db.remove('wishlists', (w) => w.userId === user.id && w.gameId === g.id);
   db.update(g, { stats: { ...g.stats, sales: (g.stats?.sales ?? 0) + 1 } });
-  return { ownership, state: userState(user) };
+  return { ownership, state: userState(user, session) };
 });
 
 // ----- wishlist -----
-route('PUT', '/api/wishlist/:id', ({ user, params }) => {
+route('PUT', '/api/wishlist/:id', ({ user, session, params }) => {
   const g = requireGame(params.id);
   if (!db.find('wishlists', (w) => w.userId === user.id && w.gameId === g.id)) db.insert('wishlists', { userId: user.id, gameId: g.id, addedAt: db.now() });
-  return userState(user);
+  return userState(user, session);
 });
-route('DELETE', '/api/wishlist/:id', ({ user, params }) => {
+route('DELETE', '/api/wishlist/:id', ({ user, session, params }) => {
   db.remove('wishlists', (w) => w.userId === user.id && w.gameId === params.id);
-  return userState(user);
+  return userState(user, session);
 });
-route('GET', '/api/wishlist', ({ user }) => db.filter('wishlists', (w) => w.userId === user.id));
+route('GET', '/api/wishlist', ({ user, session }) => db.filter('wishlists', (w) => w.userId === user.id));
 
 // ----- library -----
-route('GET', '/api/library', ({ user }) => db.filter('ownerships', (o) => o.userId === user.id).map((o) => ({
+route('GET', '/api/library', ({ user, session }) => db.filter('ownerships', (o) => o.userId === user.id).map((o) => ({
   gameId: o.gameId, acquiredAt: o.acquiredAt, source: o.source, ...playStats(user.id, o.gameId),
 })));
 
 // ----- runtime sessions -----
-route('POST', '/api/games/:id/launch', ({ user, params, body }) => {
+route('POST', '/api/games/:id/launch', ({ user, session, params, body }) => {
   const g = requireGame(params.id);
   const mode = body?.mode === 'demo' ? 'demo' : 'full';
   const owned = owns(user.id, g.id);
@@ -144,9 +182,9 @@ route('POST', '/api/games/:id/launch', ({ user, params, body }) => {
   const ver = db.get('gameVersions', g.currentVersionId);
   // Close any dangling session for this game (e.g. tab was killed).
   db.filter('playSessions', (s) => s.userId === user.id && s.gameId === g.id && !s.endedAt).forEach((s) => db.update(s, { endedAt: s.lastHeartbeatAt }));
-  const session = db.insert('playSessions', { id: db.id('ses'), userId: user.id, gameId: g.id, versionId: ver.id, mode: owned ? 'full' : mode, startedAt: db.now(), lastHeartbeatAt: db.now(), endedAt: null, seconds: 0 });
+  const play = db.insert('playSessions', { id: db.id('ses'), userId: user.id, gameId: g.id, versionId: ver.id, mode: owned ? 'full' : mode, startedAt: db.now(), lastHeartbeatAt: db.now(), endedAt: null, seconds: 0 });
   return {
-    session: { id: session.id, mode: session.mode, startedAt: session.startedAt, demoSeconds: session.mode === 'demo' ? g.demo.minutes * 60 : null },
+    session: { id: play.id, mode: play.mode, startedAt: play.startedAt, demoSeconds: play.mode === 'demo' ? g.demo.minutes * 60 : null },
     build: { url: `/games/${ver.packagePath}/${ver.entry}`, version: ver.version, buildHash: ver.buildHash, sizeBytes: ver.sizeBytes, fileCount: ver.files.length, sdk: ver.sdk },
     // Games only ever see a per-game pseudonymous player id — never the account id.
     player: { id: scopedPlayerId(user.id, g.id), displayName: user.displayName, avatarHue: user.avatarHue },
@@ -163,8 +201,8 @@ function updateSession(user, sid, activeSeconds, end) {
   db.update(s, { seconds: secs, lastHeartbeatAt: db.now(), ...(end ? { endedAt: db.now() } : {}) });
   return { ok: true, seconds: secs };
 }
-route('POST', '/api/sessions/:sid/heartbeat', ({ user, params, body }) => updateSession(user, params.sid, body?.activeSeconds, false));
-route('POST', '/api/sessions/:sid/end', ({ user, params, body }) => updateSession(user, params.sid, body?.activeSeconds, true));
+route('POST', '/api/sessions/:sid/heartbeat', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, false));
+route('POST', '/api/sessions/:sid/end', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, true));
 
 // ----- cloud saves -----
 function saveGuard(user, gameId) {
@@ -172,17 +210,17 @@ function saveGuard(user, gameId) {
   if (!canUseGame(user, g)) fail(403, 'No access to this game\'s saves');
   return g;
 }
-route('GET', '/api/games/:id/saves', ({ user, params }) => {
+route('GET', '/api/games/:id/saves', ({ user, session, params }) => {
   saveGuard(user, params.id);
   return db.filter('saves', (s) => s.userId === user.id && s.gameId === params.id).map(({ key, revision, sizeBytes, updatedAt }) => ({ key, revision, sizeBytes, updatedAt }));
 });
-route('GET', '/api/games/:id/saves/:key', ({ user, params }) => {
+route('GET', '/api/games/:id/saves/:key', ({ user, session, params }) => {
   saveGuard(user, params.id);
   const s = db.find('saves', (x) => x.userId === user.id && x.gameId === params.id && x.key === params.key);
   if (!s) return null; // missing key is a normal state, not an error
   return { key: s.key, value: s.value, revision: s.revision, updatedAt: s.updatedAt };
 });
-route('PUT', '/api/games/:id/saves/:key', ({ user, params, body }) => {
+route('PUT', '/api/games/:id/saves/:key', ({ user, session, params, body }) => {
   saveGuard(user, params.id);
   if (!SAVE_KEY_RE.test(params.key)) fail(400, 'Invalid save key');
   const json = JSON.stringify(body?.value ?? null);
@@ -196,21 +234,21 @@ route('PUT', '/api/games/:id/saves/:key', ({ user, params, body }) => {
   db.update(s, { value: JSON.parse(json), revision: s.revision + 1, sizeBytes: json.length, updatedAt: db.now() });
   return { key: s.key, revision: s.revision, updatedAt: s.updatedAt };
 });
-route('DELETE', '/api/games/:id/saves/:key', ({ user, params }) => {
+route('DELETE', '/api/games/:id/saves/:key', ({ user, session, params }) => {
   saveGuard(user, params.id);
   db.remove('saves', (x) => x.userId === user.id && x.gameId === params.id && x.key === params.key);
   return { ok: true };
 });
 
 // ----- achievements -----
-route('GET', '/api/games/:id/achievements', ({ user, params }) => {
+route('GET', '/api/games/:id/achievements', ({ user, session, params }) => {
   requireGame(params.id);
   return db.filter('achievements', (a) => a.gameId === params.id).map((a) => ({
     id: a.key, name: a.name, description: a.description,
     unlockedAt: db.find('userAchievements', (u) => u.userId === user.id && u.achievementId === a.id)?.unlockedAt ?? null,
   }));
 });
-route('POST', '/api/games/:id/achievements/:key', ({ user, params }) => {
+route('POST', '/api/games/:id/achievements/:key', ({ user, session, params }) => {
   const g = saveGuard(user, params.id);
   const a = db.get('achievements', `${g.id}:${params.key}`) ?? fail(404, 'Unknown achievement');
   const existing = db.find('userAchievements', (u) => u.userId === user.id && u.achievementId === a.id);
@@ -220,7 +258,7 @@ route('POST', '/api/games/:id/achievements/:key', ({ user, params }) => {
 });
 
 // ----- profile -----
-route('GET', '/api/profile', ({ user }) => {
+route('GET', '/api/profile', ({ user, session }) => {
   const owned = db.filter('ownerships', (o) => o.userId === user.id);
   const perGame = owned.map((o) => ({ gameId: o.gameId, ...playStats(user.id, o.gameId) }));
   const played = perGame.filter((p) => p.playtimeSeconds > 0);
@@ -228,7 +266,7 @@ route('GET', '/api/profile', ({ user }) => {
     .sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)).slice(0, 8)
     .map((u) => { const a = db.get('achievements', u.achievementId); return { gameId: u.gameId, id: a?.key, name: a?.name, description: a?.description, unlockedAt: u.unlockedAt }; });
   return {
-    ...userState(user),
+    ...userState(user, session),
     stats: {
       owned: owned.length, played: played.length,
       totalSeconds: perGame.reduce((t, p) => t + p.playtimeSeconds, 0),
@@ -250,7 +288,8 @@ function decodeB64(b64, max) {
 function publicReport(r) {
   return { ok: r.ok, errors: r.errors, warnings: r.warnings, manifest: r.manifest, files: r.files.slice(0, 200), fileCount: r.files.length, sizeBytes: r.sizeBytes, usesSdk: r.usesSdk };
 }
-route('POST', '/api/packages/inspect', ({ body }) => {
+route('POST', '/api/packages/inspect', ({ session, body }) => {
+  requireAdmin(session);
   try { return publicReport(inspectPackage(body.filename ?? 'package.zip', decodeB64(body.dataBase64, 50e6))); }
   catch (e) { if (e instanceof HttpError) throw e; fail(400, e.message); }
 });
@@ -272,7 +311,8 @@ function saveSvg(gameId, name, svg) {
 }
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'game';
 
-route('POST', '/api/publish', ({ user, body }) => {
+route('POST', '/api/publish', ({ user, session, body }) => {
+  requireAdmin(session);
   const title = String(body.title ?? '').trim();
   if (title.length < 2 || title.length > 60) fail(400, 'Title must be 2–60 characters');
   const priceCents = Math.round(Number(body.priceCents));
@@ -322,27 +362,62 @@ route('POST', '/api/publish', ({ user, body }) => {
   db.update(game, { currentVersionId: ver.id });
   (manifest.achievements ?? []).forEach((a) => db.insert('achievements', { id: `${gameId}:${a.id}`, gameId, key: a.id, name: String(a.name ?? a.id).slice(0, 60), description: String(a.description ?? '').slice(0, 140) }));
   db.insert('ownerships', { id: db.id('own'), userId: user.id, gameId, source: 'developer', pricePaidCents: 0, orderId: null, acquiredAt: db.now() });
-  return { gameId, version: ver.version, buildHash: ver.buildHash, state: userState(user) };
+  return { gameId, version: ver.version, buildHash: ver.buildHash, state: userState(user, session) };
 });
 
-// ----- prototype utilities -----
-route('POST', '/api/dev/reset', () => {
+// ----- account -----
+route('PATCH', '/api/me', ({ user, session, body }) => {
+  const name = String(body?.displayName ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim();
+  if (name.length < 2 || name.length > 24) fail(400, 'Display name must be 2–24 characters');
+  db.update(user, { displayName: name });
+  return userState(user, session);
+});
+// Wipe this account's progress (library, saves, playtime, achievements, wishlist).
+route('POST', '/api/me/reset', ({ user, session }) => {
+  for (const t of ['ownerships', 'wishlists', 'saves', 'userAchievements', 'playSessions']) db.remove(t, (r) => r.userId === user.id);
+  return userState(user, session);
+});
+
+// ----- creator / admin access -----
+route('POST', '/api/admin/login', ({ user, session, body, ctx }) => {
+  limit(`login:${ctx.ip}`, 10, 15 * 60e3);
+  if (!ADMIN_PASSWORD) { if (ADMIN_OPEN) return userState(user, session); fail(403, 'Publishing is disabled on this server (no ADMIN_PASSWORD configured)'); }
+  const a = crypto.createHash('sha256').update(String(body?.password ?? '')).digest();
+  const b = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
+  if (!crypto.timingSafeEqual(a, b)) fail(401, 'Wrong password');
+  db.update(session, { admin: true });
+  return userState(user, session);
+});
+route('POST', '/api/admin/logout', ({ user, session }) => { db.update(session, { admin: false }); return userState(user, session); });
+
+// Reset the whole site back to the seeded catalog (admin only).
+function resetSite() {
   for (const g of db.all('games').filter((x) => x.source === 'published')) {
-    fs.rmSync(path.join(PACKAGES_DIR, g.id), { recursive: true, force: true });
+    fs.rmSync(path.join(PUBLISHED_PACKAGES_DIR, g.id), { recursive: true, force: true });
     fs.rmSync(path.join(USER_MEDIA_DIR, g.id), { recursive: true, force: true });
   }
   db.reset(seed);
   return { ok: true };
-});
+}
+function resetKeepingAdmin({ user, session }) {
+  requireAdmin(session);
+  resetSite();
+  // keep the person who pressed reset signed in
+  if (!db.get('users', user.id)) db.insert('users', user);
+  db.insert('authSessions', session);
+  return { ok: true };
+}
+route('POST', '/api/admin/reset', resetKeepingAdmin);
+route('POST', '/api/dev/reset', resetKeepingAdmin); // legacy alias used by test scripts
 
-export async function handleApi(req, res, url, body) {
+export async function handleApi(req, res, url, body, ctx) {
   for (const r of routes) {
     if (r.method !== req.method) continue;
     const m = r.re.exec(url.pathname);
     if (!m) continue;
-    const user = authenticate(req, res);
+    const { user, session } = authenticate(req, res, ctx);
     const params = Object.fromEntries(Object.entries(m.groups ?? {}).map(([k, v]) => [k, decodeURIComponent(v)]));
-    return r.handler({ user, params, body, url });
+    return r.handler({ user, session, params, body, url, ctx });
   }
   fail(404, 'No such endpoint');
 }

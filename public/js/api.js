@@ -57,5 +57,13 @@ export const api = {
     inspect: (filename, dataBase64) => request('POST', '/api/packages/inspect', { filename, dataBase64 }),
     publish: (payload) => request('POST', '/api/publish', payload),
   },
-  resetDemo: () => request('POST', '/api/dev/reset'),
+  account: {
+    rename: (displayName) => request('PATCH', '/api/me', { displayName }),
+    resetProgress: () => request('POST', '/api/me/reset'),
+  },
+  admin: {
+    login: (password) => request('POST', '/api/admin/login', { password }),
+    logout: () => request('POST', '/api/admin/logout'),
+    resetSite: () => request('POST', '/api/admin/reset'),
+  },
 };
