@@ -1,0 +1,22 @@
+{
+  "id": "nightpaw",
+  "name": "Nightpaw",
+  "version": "2.0.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "runtime": { "min": "1.0", "features": ["webgl", "canvas2d", "webaudio"] },
+  "input": ["keyboard", "gamepad", "touch"],
+  "orientation": "landscape",
+  "achievements": [
+    { "id": "first_blood", "name": "Claws Out", "description": "Defeat your first hollow thing." },
+    { "id": "rested", "name": "A Warm Light", "description": "Rest at a candle shrine." },
+    { "id": "slipper", "name": "Her Footsteps", "description": "Find Mira's lost slipper." },
+    { "id": "shadow_dash", "name": "Shadow Dash", "description": "Let a shadow join yours." },
+    { "id": "heart_vessel", "name": "A Life Remembered", "description": "Find one of Nightpaw's lost lives." },
+    { "id": "two_lives", "name": "Twice Remembered", "description": "Find both lost lives in the Hollows." },
+    { "id": "secret_wall", "name": "Hollow Walls", "description": "Break open a hidden passage." },
+    { "id": "warden", "name": "The Warden Falls", "description": "Defeat the Hollow Warden." },
+    { "id": "moth_wings", "name": "Moth Wings", "description": "Accept a gift of wings." },
+    { "id": "hollows_done", "name": "Into the Deep", "description": "Leave the Hollows." }
+  ]
+}

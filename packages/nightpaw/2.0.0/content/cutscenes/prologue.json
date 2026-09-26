@@ -1,0 +1,62 @@
+[
+  {
+    "id": "intro",
+    "steps": [
+      { "do": "fade", "to": 1, "ms": 0 },
+      { "do": "player", "hidden": true },
+      { "do": "ambience", "id": "rain" },
+      { "do": "music", "id": "rhyme" },
+      { "do": "storybook", "pages": [
+        { "image": "sb_town", "rain": true, "pan": [1.1, 1.0, -30, 0], "lines": [
+          "In the town of Wickmoor, it rained every night that autumn.",
+          "In the last house on Candle Lane, a girl named Mira was being told, for the fifth time, to go to sleep."
+        ] },
+        { "image": "sb_bedroom", "pan": [1.0, 1.1, 60, 10], "lines": [
+          "Mira had a cat called Nightpaw, because he walked around at night, and his paws were the night.",
+          "Every night, Mira sang the old rhyme.",
+          "Lose a penny, lose a key,\nlose a ribbon off a tree —",
+          "all the things that slip from sight\ntumble Underneath at night.",
+          "Hush now, hush, and hold on tight,\nor Underneath will keep you. Quite.",
+          "Nightpaw did not like that rhyme. Cats know things."
+        ] },
+        { "image": "sb_moth", "rain": true, "moth": [420, 330], "pan": [1.05, 1.12, 20, 0], "lines": [
+          "Later, when the candle had burned down to a stub, something tapped at the window.",
+          "Tap.",
+          "Tap.",
+          "Tap."
+        ] },
+        { "image": "sb_empty", "pan": [1.12, 1.0, 0, -10], "sfx": "thunder", "lines": [
+          "In the morning, the bed was empty.",
+          "The window was open. Small muddy footprints went over the sill and out into the garden..."
+        ] },
+        { "image": "sb_well", "pan": [1.0, 1.25, 0, 20], "lines": [
+          "...to the old well that Mira was never, ever allowed near.",
+          "Nightpaw had already spent eight of his lives, and had only one left.",
+          "He jumped in anyway."
+        ] }
+      ] },
+      { "do": "music", "stop": true },
+      { "do": "ambience", "id": "hollows" },
+      { "do": "letterbox", "on": true },
+      { "do": "player", "hidden": false, "x": 6, "y": 0, "vy": 200, "face": 1 },
+      { "do": "sfx", "id": "whoosh" },
+      { "do": "fade", "to": 0, "ms": 1400 },
+      { "do": "waitLand" },
+      { "do": "sfx", "id": "slam" },
+      { "do": "shake", "amount": 10 },
+      { "do": "wait", "ms": 1200 },
+      { "do": "emote", "who": "player", "kind": "?" },
+      { "do": "wait", "ms": 900 },
+      { "do": "face", "who": "player", "dir": -1 },
+      { "do": "wait", "ms": 500 },
+      { "do": "face", "who": "player", "dir": 1 },
+      { "do": "wait", "ms": 400 },
+      { "do": "title", "name": "The Hollows", "sub": "Where lost things land" },
+      { "do": "music", "id": "hollows" },
+      { "do": "wait", "ms": 1600 },
+      { "do": "letterbox", "on": false },
+      { "do": "flag", "set": "intro_done" },
+      { "do": "hint", "text": "← →  move     Z / Space  jump     ↑  look at things", "ms": 6000 }
+    ]
+  }
+]

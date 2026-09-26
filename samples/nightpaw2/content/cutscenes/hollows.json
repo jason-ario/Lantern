@@ -1,0 +1,670 @@
+[
+  {
+    "id": "claw_hint",
+    "steps": [
+      {
+        "do": "emote",
+        "who": "player",
+        "kind": "!"
+      },
+      {
+        "do": "hint",
+        "text": "X — scratch      ↑ + X — scratch upward      ↓ + X in the air — scratch down and bounce",
+        "ms": 6500
+      }
+    ]
+  },
+  {
+    "id": "meet_tallow",
+    "steps": [
+      {
+        "do": "flag",
+        "set": "met_tallow"
+      },
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "camera",
+        "to": "tallow",
+        "dx": -2,
+        "ms": 900
+      },
+      {
+        "do": "face",
+        "who": "tallow",
+        "at": "player"
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "Oh! Oh dear. Good evening.",
+          "You've fallen. Everyone falls, down here. That's rather the point of the place."
+        ]
+      },
+      {
+        "do": "walk",
+        "to": 12,
+        "face": 1
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "I'm Tallow. I keep the candles in the Hollows lit. Well. Some of them.",
+          "You're looking for someone. You have the look."
+        ]
+      },
+      {
+        "do": "emote",
+        "who": "player",
+        "kind": "!"
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "A little girl came through in the night. Yellow boots. She was following a moth.",
+          "...Not me! A different moth. We don't all know each other.",
+          "She went deeper. Everything goes deeper, eventually."
+        ]
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "This is the Underneath. It's where lost things go.",
+          "It used to be lovely. The Hearthlamp lit all of it, and the light helped us remember who we belonged to.",
+          "Then the lamp went out. Now things down here are forgetting. Going hollow.",
+          "They'll bite. I'm so sorry about that."
+        ]
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "text": "If you need to rest, sit by the candles and press UP. I'll keep them burning for you."
+      },
+      {
+        "do": "camera",
+        "release": true
+      }
+    ]
+  },
+  {
+    "id": "tallow_idle",
+    "steps": [
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "The candle likes you. Candles have very good taste.",
+          "The girl went east, through the Weeping Tunnels. Mind the thorns. They're not personal."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tallow_slipper",
+    "steps": [
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "Is that... a slipper? Oh. Oh, she's so small.",
+          "Then she really did go all the way down. Nobody goes all the way down on purpose."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tallow_dash",
+    "steps": [
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "Your shadow looks thicker. Did you borrow one?",
+          "It suits you. Shadows are very loyal once they've decided."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tallow_late",
+    "steps": [
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "You're still here! The wings fit you. My sister would be delighted. And a little jealous.",
+          "Up through the Updraft, then down toward the water. I'll keep the candles lit."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "find_slipper",
+    "steps": [
+      {
+        "do": "flag",
+        "set": "slipper"
+      },
+      {
+        "do": "achieve",
+        "id": "slipper"
+      },
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "music",
+        "stop": true
+      },
+      {
+        "do": "wait",
+        "ms": 600
+      },
+      {
+        "do": "item",
+        "title": "Mira's Slipper",
+        "icon": "slipper",
+        "text": "Pink, with a pompom. The mud on it is still wet."
+      },
+      {
+        "do": "wait",
+        "ms": 700
+      },
+      {
+        "do": "say",
+        "who": "mira",
+        "lines": [
+          "...lose a ribbon off a tree...",
+          "Nightpaw? Is that you?",
+          "It's very dark. But there's a moth, and she's showing me the way.",
+          "She says I'm going to be a lamp."
+        ]
+      },
+      {
+        "do": "wait",
+        "ms": 900
+      },
+      {
+        "do": "emote",
+        "who": "player",
+        "kind": "!"
+      },
+      {
+        "do": "wait",
+        "ms": 600
+      },
+      {
+        "do": "music",
+        "id": "hollows"
+      }
+    ]
+  },
+  {
+    "id": "crossroads_look",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "camera",
+        "to": {
+          "x": 6,
+          "y": 5
+        },
+        "ms": 1800
+      },
+      {
+        "do": "wait",
+        "ms": 600
+      },
+      {
+        "do": "narrate",
+        "text": "Far above, something small and pale is glowing.\nIt looks a lot like a kitten."
+      },
+      {
+        "do": "camera",
+        "release": true,
+        "ms": 1200
+      },
+      {
+        "do": "hint",
+        "text": "Too high to reach. For now.",
+        "ms": 3500
+      }
+    ]
+  },
+  {
+    "id": "get_dash",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "sfx",
+        "id": "whoosh"
+      },
+      {
+        "do": "shake",
+        "amount": 4
+      },
+      {
+        "do": "narrate",
+        "lines": [
+          "The coats sway, though nothing is touching them.",
+          "A shadow slips out of an empty sleeve and pools at your feet.",
+          "It fits exactly."
+        ]
+      },
+      {
+        "do": "item",
+        "title": "Shadow Dash",
+        "icon": "relic_dash",
+        "text": "It was somebody's shadow once. It seems happy to be yours.",
+        "hint": "C or Shift — dash. Works on the ground, and once in the air."
+      },
+      {
+        "do": "give",
+        "ability": "dash",
+        "achievement": "shadow_dash"
+      }
+    ]
+  },
+  {
+    "id": "thorn_hint",
+    "steps": [
+      {
+        "do": "hint",
+        "text": "The thorns are too wide to jump. There might be another way across.",
+        "ms": 4000
+      }
+    ]
+  },
+  {
+    "id": "shade_rainbox",
+    "steps": [
+      {
+        "do": "memory",
+        "title": "The First Life — The Rain Box",
+        "image": "sb_town",
+        "lines": [
+          "A cardboard box by a drain. Rain like pebbles.",
+          "You were so small you would have fit inside a shoe.",
+          "Then two yellow boots stopped right in front of you,\nand a very small girl said: \"You're mine now.\"",
+          "And you were.",
+          "(The first life doesn't end in dying. It ends when the second one begins.)"
+        ]
+      },
+      {
+        "do": "shade",
+        "id": "rainbox"
+      },
+      {
+        "do": "item",
+        "title": "A Life Remembered",
+        "icon": "shade",
+        "text": "One of your lost lives has come home.",
+        "hint": "Maximum health +1"
+      }
+    ]
+  },
+  {
+    "id": "shade_pond",
+    "steps": [
+      {
+        "do": "memory",
+        "title": "The Second Life — The Pond in Winter",
+        "lines": [
+          "A leaf skating across the ice, and you right behind it.",
+          "The ice sang one long, low note, like a door opening.",
+          "Then it was very cold, and very quiet, and very dark.",
+          "Mira searched for you until the snow melted.\nAfter that, she always left the back door open. Just in case."
+        ]
+      },
+      {
+        "do": "shade",
+        "id": "pond"
+      },
+      {
+        "do": "item",
+        "title": "A Life Remembered",
+        "icon": "shade",
+        "text": "One of your lost lives has come home.",
+        "hint": "Maximum health +1"
+      }
+    ]
+  },
+  {
+    "id": "meet_nib",
+    "steps": [
+      {
+        "do": "flag",
+        "set": "met_nib"
+      },
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "camera",
+        "to": "nib",
+        "dx": -2,
+        "ms": 700
+      },
+      {
+        "do": "face",
+        "who": "nib",
+        "at": "player"
+      },
+      {
+        "do": "say",
+        "who": "nib",
+        "lines": [
+          "A customer! No. Not a customer. You haven't got pockets.",
+          "Nib. Traveling button merchant. Everything I sell is found, not lost. Totally different thing.",
+          "You're wondering why I'm standing next to a big pile of rocks."
+        ]
+      },
+      {
+        "do": "emote",
+        "who": "player",
+        "kind": "?"
+      },
+      {
+        "do": "say",
+        "who": "nib",
+        "lines": [
+          "I'll tell you anyway. My shop is on the other side. Rockfall. Very sudden. Very rude.",
+          "When somebody clears it, come and spend those buttons. I'll have hats.",
+          "Everybody needs a hat."
+        ]
+      },
+      {
+        "do": "camera",
+        "release": true
+      }
+    ]
+  },
+  {
+    "id": "nib_idle",
+    "steps": [
+      {
+        "do": "say",
+        "who": "nib",
+        "lines": [
+          "Buttons are money down here. Nobody knows who decided. Probably a button.",
+          "The Warden's hall is past the coats. He used to catch things when they fell.",
+          "Now he just... catches things."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "nib_after",
+    "steps": [
+      {
+        "do": "say",
+        "who": "nib",
+        "lines": [
+          "You beat the Warden? With just your claws?",
+          "I'm going to have to raise my prices."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "read_dont",
+    "steps": [
+      {
+        "do": "narrate",
+        "lines": [
+          "NIGHTPAW DONT —",
+          "The rest has been scratched out by something with claws.\nMuch bigger claws than yours."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "warden_intro",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "music",
+        "stop": true
+      },
+      {
+        "do": "walk",
+        "to": 11,
+        "face": 1
+      },
+      {
+        "do": "wait",
+        "ms": 400
+      },
+      {
+        "do": "camera",
+        "to": {
+          "x": 22,
+          "y": 14
+        },
+        "ms": 1400
+      },
+      {
+        "do": "sfx",
+        "id": "gate"
+      },
+      {
+        "do": "shake",
+        "amount": 3
+      },
+      {
+        "do": "wait",
+        "ms": 700
+      },
+      {
+        "do": "say",
+        "who": "warden",
+        "lines": [
+          "...FALLING...",
+          "SOMETHING... ELSE... FALLING...",
+          "MUST... CATCH..."
+        ]
+      },
+      {
+        "do": "boss",
+        "action": "wake",
+        "id": "warden"
+      },
+      {
+        "do": "sfx",
+        "id": "roar"
+      },
+      {
+        "do": "shake",
+        "amount": 12
+      },
+      {
+        "do": "title",
+        "name": "The Hollow Warden",
+        "sub": "Keeper of the Deep",
+        "boss": true
+      },
+      {
+        "do": "wait",
+        "ms": 1200
+      },
+      {
+        "do": "camera",
+        "release": true,
+        "ms": 700
+      },
+      {
+        "do": "letterbox",
+        "on": false
+      }
+    ]
+  },
+  {
+    "id": "warden_defeat",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "camera",
+        "to": "self",
+        "ms": 900
+      },
+      {
+        "do": "wait",
+        "ms": 800
+      },
+      {
+        "do": "say",
+        "who": "warden",
+        "lines": [
+          "...Oh.",
+          "Little one. Did I... catch you?",
+          "I used to catch them all. Buttons. Keys. Kittens. Nothing ever broke while I was here.",
+          "Then the light went out, and I forgot what my arms were for.",
+          "The girl went up the old draught, toward the water. Mothmother's moth was with her.",
+          "I'm sorry. Tell her I'm sorry I didn't catch her."
+        ]
+      },
+      {
+        "do": "wait",
+        "ms": 600
+      },
+      {
+        "do": "sfx",
+        "id": "memory"
+      },
+      {
+        "do": "wait",
+        "ms": 1600
+      },
+      {
+        "do": "flag",
+        "set": "warden_dead",
+        "refresh": true
+      },
+      {
+        "do": "camera",
+        "to": "tallow",
+        "ms": 900
+      },
+      {
+        "do": "run",
+        "id": "tallow_wings"
+      }
+    ]
+  },
+  {
+    "id": "tallow_wings",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "face",
+        "who": "tallow",
+        "at": "player"
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "He remembered. At the very end. That's the most any of us can hope for.",
+          "You'll need to go up. The draught goes up before it goes down. Everything is backwards here.",
+          "Take these. They were my sister's.",
+          "She went hollow last winter. She'd want them to be used."
+        ]
+      },
+      {
+        "do": "item",
+        "title": "Moth Wings",
+        "icon": "relic_wings",
+        "text": "Pale wings, dusted with old light.",
+        "hint": "Press JUMP again in the air to jump a second time."
+      },
+      {
+        "do": "give",
+        "ability": "wings",
+        "achievement": "moth_wings"
+      },
+      {
+        "do": "flag",
+        "set": "got_wings"
+      },
+      {
+        "do": "say",
+        "who": "tallow",
+        "lines": [
+          "Jump, and then jump again. Don't look down.",
+          "Actually, do look down. That's where we're all going.",
+          "I'll keep your candles lit."
+        ]
+      },
+      {
+        "do": "npc",
+        "id": "tallow",
+        "hide": true
+      },
+      {
+        "do": "camera",
+        "release": true
+      },
+      {
+        "do": "music",
+        "id": "hollows"
+      },
+      {
+        "do": "hint",
+        "text": "The way out is up.",
+        "ms": 4000
+      }
+    ]
+  },
+  {
+    "id": "demo_end",
+    "steps": [
+      {
+        "do": "letterbox"
+      },
+      {
+        "do": "music",
+        "stop": true
+      },
+      {
+        "do": "wait",
+        "ms": 800
+      },
+      {
+        "do": "say",
+        "who": "mira",
+        "lines": [
+          "Nightpaw! I can hear you!",
+          "It's warm here. The moth says I'll be the brightest thing in the whole Underneath.",
+          "Is that good? It sounds good.",
+          "...Why does everyone look so sad?"
+        ]
+      },
+      {
+        "do": "flag",
+        "set": "hollows_done"
+      },
+      {
+        "do": "achieve",
+        "id": "hollows_done"
+      },
+      {
+        "do": "end"
+      }
+    ]
+  }
+]
