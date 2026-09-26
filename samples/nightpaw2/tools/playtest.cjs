@@ -18,7 +18,7 @@ async function open(browser, query) {
   await page.waitForFunction(() => window.__NP && window.__NP.started, null, { timeout: 30000 });
   const T = {
     page, errors,
-    adv: (sec) => page.evaluate((s) => { const g = window.__NP.sys.game; let t = performance.now(); for (let i = 0; i < s * 60; i++) { t += 1000 / 60; g.headlessStep(t, 1000 / 60); } }, sec),
+    adv: (sec) => page.evaluate((s) => { const g = window.__NP.sys.game; let t = Math.max(window.__simT || 0, performance.now()); for (let i = 0; i < s * 60; i++) { t += 1000 / 60; g.headlessStep(t, 1000 / 60); } window.__simT = t; }, sec),
     state: () => page.evaluate(() => { const g = window.__NP, P = g.player; return { room: g.room.id, x: +(P.x / 16 - g.room.x).toFixed(2), y: +(P.y / 16 - g.room.y).toFixed(2), hp: P.hp, ground: P.onGround, cut: g.inCutscene, modal: !!g.ui.modal, dead: P.dead, buttons: window.__NP_GAME.save.buttons, abilities: Object.keys(window.__NP_GAME.save.abilities), flags: Object.keys(window.__NP_GAME.save.flags), ents: g.ents.length }; }),
     async hold(keys, sec) { for (const k of [].concat(keys)) await page.keyboard.down(k); await T.adv(sec); for (const k of [].concat(keys)) await page.keyboard.up(k); await T.adv(1 / 30); },
     async press(k, after = 0.1) { await page.keyboard.down(k); await T.adv(1 / 30); await page.keyboard.up(k); await T.adv(after); },
@@ -95,7 +95,7 @@ const scenarios = {
     await page.waitForTimeout(4000);
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => window.__NP && window.__NP.started && window.__NP.inCutscene, null, { timeout: 60000 });
-    const adv = (sec) => page.evaluate((s) => { const g = window.__NP.sys.game; let t = performance.now(); for (let i = 0; i < s * 60; i++) { t += 1000 / 60; g.headlessStep(t, 1000 / 60); } }, sec);
+    const adv = (sec) => page.evaluate((s) => { const g = window.__NP.sys.game; let t = Math.max(window.__simT || 0, performance.now()); for (let i = 0; i < s * 60; i++) { t += 1000 / 60; g.headlessStep(t, 1000 / 60); } window.__simT = t; }, sec);
     await adv(2);
     await page.keyboard.down('Escape'); await adv(1.0); await page.keyboard.up('Escape'); await adv(1.5);
     const st = await page.evaluate(() => ({ cut: window.__NP.inCutscene, hidden: window.__NP.player.hidden, fade: window.__NP.ui.fadeRect.alpha, intro: !!window.__NP_GAME.save.flags.intro_done, room: window.__NP.room.id, modal: !!window.__NP.ui.modal }));

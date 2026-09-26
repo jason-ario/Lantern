@@ -1074,13 +1074,23 @@
   });
 
   // ---------- render all ----------
-  window.renderAll = function (only) {
+  // `scale` renders every asset at a higher resolution (vector drawing, so it stays crisp);
+  // used for store capsule art. Blur radii are scaled to match.
+  window.renderAll = function (only, scale = 1) {
     const out = [];
+    const proto = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'filter');
     for (const a of assets) {
       if (only && !only.includes(a.key)) continue;
       const cv = document.createElement('canvas');
-      cv.width = a.w; cv.height = a.h;
+      cv.width = Math.ceil(a.w * scale); cv.height = Math.ceil(a.h * scale);
       const c = cv.getContext('2d');
+      if (scale !== 1) {
+        Object.defineProperty(c, 'filter', {
+          get() { return proto.get.call(c); },
+          set(v) { proto.set.call(c, String(v).replace(/blur\(([\d.]+)px\)/g, (m, n) => `blur(${n * scale}px)`)); },
+        });
+        c.scale(scale, scale);
+      }
       a.draw(c);
       out.push({ key: a.key, w: a.w, h: a.h, data: cv.toDataURL('image/png') });
     }
