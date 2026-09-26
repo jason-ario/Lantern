@@ -8,6 +8,7 @@ import * as library from './views/library.js';
 import * as wishlist from './views/wishlist.js';
 import * as profile from './views/profile.js';
 import * as publish from './views/publish.js';
+import * as developers from './views/developers.js';
 import * as play from './views/play.js';
 import * as checkoutComplete from './views/checkout-complete.js';
 import { openAuth } from './views/auth.js';
@@ -24,6 +25,7 @@ const routes = [
   [/^\/wishlist\/?$/, wishlist, 'wishlist'],
   [/^\/profile\/?$/, profile, 'profile'],
   [/^\/publish\/?$/, publish, 'publish'],
+  [/^\/developers\/?$/, developers, 'developers'],
   [/^\/play\/([^/]+)\/?$/, play, null],
   [/^\/checkout\/complete\/?$/, checkoutComplete, 'store'],
 ];

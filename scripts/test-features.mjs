@@ -161,6 +161,28 @@ try {
     // UI flow for a creator update
     await page.goto(`${A}/publish`); await page.waitForSelector('[data-update="skylark"]');
     check('Publish page lists your games with "Publish update"', true);
+    // Creator guide + starter kit + earnings
+    await page.goto(`${A}/developers`); await page.waitForSelector('.dv-hero');
+    check('Creator guide renders with the revenue share', (await page.textContent('.dv-hero h1')).includes('90%') && (await page.$$('.dv-sec')).length >= 10);
+    const kit = await fetch(`${A}/creator/lantern-starter.zip`);
+    const starter = await api('POST', '/api/publish', { title: 'Firefly Jar', version: '1.0.0', priceCents: 499, tags: ['Casual'], package: { filename: 'lantern-starter.zip', dataBase64: Buffer.from(await kit.arrayBuffer()).toString('base64') } });
+    check('Starter kit downloads and publishes cleanly', kit.ok && starter.status === 200, starter.body?.error);
+    const buyer = await newPlayer(A);
+    await buyer.page.goto(`${A}/store`); await buyer.page.waitForSelector('#meChip');
+    await buyer.api('POST', `/api/games/${starter.body.gameId}/purchase`, { paymentMethod: 'demo-wallet' });
+    await buyer.page.goto(`${A}/play/${starter.body.gameId}`);
+    const sf = await gameFrame(buyer.page);
+    await buyer.page.waitForSelector('#rtSplash.gone', { state: 'attached', timeout: 15000 });
+    await sf.waitForFunction(() => document.getElementById('total')?.textContent === '0');
+    const box = await buyer.page.$eval('#rtFrame, iframe', (e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    for (let i = 0; i < 120 && (await sf.textContent('#score')) === '0'; i++) await buyer.page.mouse.click(box.x + Math.random() * box.w, box.y + box.h * (0.2 + Math.random() * 0.7));
+    await quit(buyer.page);
+    const bs = await buyer.api('GET', `/api/games/${starter.body.gameId}/saves`);
+    const ba = await buyer.api('GET', `/api/games/${starter.body.gameId}/achievements`);
+    check('Starter game saves and unlocks achievements on Lantern', bs.body.some((x) => x.key === 'progress') && ba.body.find((a) => a.id === 'first_catch')?.unlockedAt, JSON.stringify(bs.body));
+    await buyer.ctx.close();
+    const mine = (await api('GET', '/api/creator/games')).body.find((x) => x.id === starter.body.gameId);
+    check('Creator sees the sale and a 90% share', mine.sales.count === 1 && mine.sales.creatorCents === 449, JSON.stringify(mine.sales));
     await ctx.close();
   }
 

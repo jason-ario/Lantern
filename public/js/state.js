@@ -5,7 +5,7 @@ const listeners = new Set();
 export const state = {
   user: null,
   creator: { admin: false, passwordRequired: true, enabled: false },
-  features: { google: false, stripe: false, currency: 'usd', gamesOrigin: null },
+  features: { google: false, stripe: false, currency: 'usd', gamesOrigin: null, creatorShare: 0.9 },
   offline: false,
   owned: new Set(),
   wishlist: new Set(),

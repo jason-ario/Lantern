@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firefly Jar — Lantern starter</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070a10; color: #e9e3cf; font: 15px system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+  #hud { position: fixed; top: 12px; left: 14px; right: 14px; display: flex; justify-content: space-between; pointer-events: none; text-shadow: 0 1px 3px #000; }
+  #hud b { color: #ffd76a; }
+</style>
+</head>
+<body>
+<div id="hud"><span>Tonight: <b id="score">0</b> · Total: <b id="total">0</b></span><span id="time">60s</span></div>
+<canvas id="c"></canvas>
+
+<!-- 1. The Lantern SDK. Always this exact path: Lantern provides it. -->
+<script src="/sdk/v1/platform-sdk.js"></script>
+<!-- 2. Dev stand-in so the game also runs outside Lantern (does nothing inside Lantern). -->
+<script src="lantern-dev.js"></script>
+<!-- 3. Your game. -->
+<script src="game.js"></script>
+</body>
+</html>

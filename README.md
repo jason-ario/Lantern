@@ -80,6 +80,8 @@ Platform.game.reportPlaytime(); Platform.game.exit(); onPause / onResume
 
 ## Making your own game
 
+**Selling a game on Lantern?** Read the creator guide. It's in the app at `/developers` and in [CREATORS.md](CREATORS.md). It covers the starter kit, the SDK reference, packaging, publishing, updates and the 90/10 revenue share.
+
 1. Build any HTML/JS game and load `/sdk/v1/platform-sdk.js` in `index.html`.
 2. Add a `manifest.json` with `name`, `version`, `entry`, `"sdk": "1"` and an optional `achievements` list.
 3. Run `node scripts/pack.mjs path/to/my-game`, which writes `my-game-1.0.0.zip`.

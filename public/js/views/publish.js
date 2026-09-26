@@ -5,6 +5,9 @@ import { go } from '../nav.js';
 import { esc, price, bytes, icons, toast, modal, date, $, $$ } from '../ui.js';
 
 const PRICES = [0, 299, 499, 799, 999, 1499, 1999];
+const money = (c) => `$${(c / 100).toFixed(2)}`;
+const share = () => state.features.creatorShare ?? 0.9;
+const pct = () => `${Math.round(share() * 100)}%`;
 const SUGGESTED_TAGS = ['Arcade', 'Casual', 'Puzzle', 'Action', 'Platformer', 'Strategy', 'Cozy', 'Roguelike', 'Narrative', 'Minimalist', 'Score Attack', 'Relaxing'];
 
 const readAs = (file, how) => new Promise((resolve, reject) => {
@@ -19,7 +22,8 @@ function renderLocked(root) {
   const c = state.creator;
   root.innerHTML = `<div class="page publish">
     <div class="pub-head"><div><div class="eyebrow">Lantern Creator</div><h1>Publish a web game</h1>
-    <p class="muted">Upload an HTML/JS game package and it gets a live store page instantly.</p></div></div>
+    <p class="muted">Upload an HTML/JS game package and it gets a live store page instantly.</p>
+    <p><a class="btn btn-ghost btn-sm" href="/developers" data-link>Read the creator guide</a></p></div></div>
     <div class="panel pub-lock">
       ${c.enabled ? `<h3>Creator access</h3>
       <p class="muted">Publishing on this server is limited to creators. Enter the creator password to continue.</p>
@@ -47,7 +51,8 @@ export async function render(root) {
   root.innerHTML = `<div class="page publish">
     <div class="pub-head">
       <div><div class="eyebrow">Lantern Creator · Prototype</div><h1>Publish a web game</h1>
-      <p class="muted">Any HTML/JS/WebGL game becomes a premium, ownable, instantly playable title. Package it, describe it, publish — the store page is live immediately.</p></div>
+      <p class="muted">Any HTML/JS/WebGL game becomes a premium, ownable, instantly playable title. Package it, describe it, publish — the store page is live immediately.</p>
+      <p class="pub-guide-link"><a href="/developers" data-link>New here? Read the creator guide →</a> <span class="muted small">SDK reference, packaging, pricing and the ${pct()} revenue share.</span></p></div>
       <ol class="pub-steps"><li class="on" data-s="1"><b>1</b>Build<small>Web game + Lantern SDK</small></li><li data-s="2"><b>2</b>Package<small>.zip with manifest.json</small></li><li data-s="3"><b>3</b>Describe<small>Store metadata</small></li><li data-s="4"><b>4</b>Publish<small>Live instantly</small></li></ol>
     </div>
     <section class="my-games" id="myGames"></section>
@@ -87,7 +92,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
             <label class="f span2"><span>Game title</span><input name="title" maxlength="60" required placeholder="e.g. Skylark"></label>
             <label class="f"><span>Developer</span><input name="developerName" maxlength="40" placeholder="Your studio name"></label>
             <label class="f"><span>Version</span><input name="version" value="1.0.0" pattern="\\d+\\.\\d+\\.\\d+"></label>
-            <label class="f"><span>Price</span><select name="price">${PRICES.map((p) => `<option value="${p}" ${p === 499 ? 'selected' : ''}>${price(p)}</option>`).join('')}</select></label>
+            <label class="f"><span>Price <small id="earnHint"></small></span><select name="price">${PRICES.map((p) => `<option value="${p}" ${p === 499 ? 'selected' : ''}>${price(p)}</option>`).join('')}</select></label>
             <label class="f check"><input type="checkbox" name="demo" checked><span>Offer a 5-minute instant demo</span></label>
             <label class="f span2"><span>Short description <small>shown on capsules &amp; search</small></span><input name="shortDescription" maxlength="300" placeholder="One or two sentences that sell the game."></label>
             <label class="f span2"><span>About this game</span><textarea name="description" rows="5" placeholder="Separate paragraphs with a blank line."></textarea></label>
@@ -131,6 +136,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
     $('#pvTitle', root).textContent = t;
     $('#pvLogo', root).textContent = t;
     $('#pvPrice', root).textContent = price(+val('price'));
+    $('#earnHint', root).textContent = +val('price') ? `you earn up to ${money(Math.floor(+val('price') * share()))} per sale` : 'free games earn nothing';
     $('#pvShort', root).textContent = val('shortDescription') || 'Your short description appears here.';
     $('#pvTags', root).innerHTML = val('tags').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8).map((x) => `<span class="tag">${esc(x)}</span>`).join('');
     $('#pvFacts', root).innerHTML = form.report ? `<dl class="kv"><dt>Version</dt><dd>${esc(val('version'))}</dd><dt>Package</dt><dd>${bytes(form.report.sizeBytes)} · ${form.report.fileCount} files</dd><dt>SDK</dt><dd>${form.report.usesSdk ? 'Lantern SDK v1' : 'Not detected'}</dd><dt>Achievements</dt><dd>${form.report.manifest?.achievements?.length ?? 0}</dd><dt>Demo</dt><dd>${f.elements.demo.checked ? '5 minutes' : 'None'}</dd></dl>` : '';
@@ -267,6 +273,8 @@ async function renderMyGames(host) {
       <span class="mg-art" style="background-image:url('${esc(g.media.header)}')"></span>
       <div class="mg-body"><b>${esc(g.title)}</b><span class="muted small">v${esc(g.currentVersion)} · ${g.owners} player${g.owners === 1 ? '' : 's'} · ${g.versions.length} version${g.versions.length === 1 ? '' : 's'}</span>
         <span class="mg-notes muted small">${esc((g.versions[0]?.notes ?? '').slice(0, 120))}</span></div>
+      ${g.priceCents ? `<div class="mg-sales" title="${g.sales.testCount ? `${g.sales.testCount} of these were demo-wallet test purchases. ` : ''}Your ${pct()} share is before payment processing fees, taxes and refunds.">
+        <b>${money(g.sales.creatorCents)}</b><span class="muted small">your share · ${g.sales.count} sale${g.sales.count === 1 ? '' : 's'}${g.sales.testCount ? ` (${g.sales.testCount} test)` : ''}</span></div>` : '<div class="mg-sales"><b>Free</b><span class="muted small">' + g.owners + ' claimed</span></div>'}
       <div class="mg-actions"><a class="btn btn-ghost btn-sm" href="/app/${esc(g.id)}" data-link>Store page</a><button class="btn btn-buy btn-sm" data-update="${esc(g.id)}">Publish update</button></div>
     </div>`).join('')}</div>`;
   host.onclick = (e) => {

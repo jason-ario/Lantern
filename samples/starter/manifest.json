@@ -1,0 +1,12 @@
+{
+  "name": "Firefly Jar",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "sdk": "1",
+  "input": ["mouse", "touch"],
+  "achievements": [
+    { "id": "first_catch", "name": "First Light", "description": "Catch your first firefly." },
+    { "id": "jar_full", "name": "Full Jar", "description": "Catch 25 fireflies in one night." },
+    { "id": "collector", "name": "Collector", "description": "Catch 100 fireflies in total." }
+  ]
+}

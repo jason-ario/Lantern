@@ -9,7 +9,7 @@ import * as db from './db.js';
 import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
 import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
-import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY } from './config.js';
+import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE } from './config.js';
 import { hashPassword, verifyPassword, EMAIL_RE, uniqueUsername, mergeUsers, googleEnabled, googleStartUrl, googleFinish } from './auth.js';
 import { stripeEnabled, createCheckoutSession, retrieveCheckoutSession, verifyWebhook } from './payments.js';
 import { signBuild, currentKeyId, publicKey } from './signing.js';
@@ -126,7 +126,7 @@ function playStats(userId, gameId) {
 function userState(user, session) {
   return {
     user: { id: user.id, username: user.username, displayName: user.displayName, avatarHue: user.avatarHue, memberSince: user.memberSince, guest: !!user.guest, email: user.email ?? null, hasPassword: !!user.passwordHash, google: !!user.googleId },
-    features: { google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true },
+    features: { google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE },
     creator: { admin: isAdmin(session), passwordRequired: !ADMIN_OPEN, enabled: ADMIN_OPEN || !!ADMIN_PASSWORD },
     owned: db.filter('ownerships', (o) => o.userId === user.id).map((o) => o.gameId),
     wishlist: db.filter('wishlists', (w) => w.userId === user.id).map((w) => w.gameId),
@@ -621,6 +621,13 @@ const semverGt = (a, b) => { const x = semver(a), y = semver(b); for (let i = 0;
 function canUpdateGame(user, session, g) {
   return isAdmin(session) && (ADMIN_OPEN || g.publishedBy === user.id);
 }
+// Paid sales for a game and the creator's share (payouts are planned, not live).
+function salesSummary(gameId) {
+  const paid = db.filter('orders', (o) => o.gameId === gameId && o.status === 'paid' && o.amountCents > 0);
+  const real = paid.filter((o) => o.provider === 'stripe');
+  const grossCents = paid.reduce((t, o) => t + o.amountCents, 0);
+  return { count: paid.length, grossCents, creatorCents: Math.floor(grossCents * CREATOR_SHARE), share: CREATOR_SHARE, testCount: paid.length - real.length };
+}
 route('GET', '/api/creator/games', ({ user, session }) => {
   requireAdmin(session);
   return db.all('games').filter((g) => canUpdateGame(user, session, g) && g.currentVersionId).map((g) => {
@@ -629,6 +636,7 @@ route('GET', '/api/creator/games', ({ user, session }) => {
       id: g.id, title: g.title, media: g.media, source: g.source, priceCents: g.priceCents, mine: g.publishedBy === user.id,
       placeholder: !!db.get('gameVersions', g.currentVersionId)?.placeholder,
       owners: db.filter('ownerships', (o) => o.gameId === g.id).length,
+      sales: salesSummary(g.id),
       currentVersion: db.get('gameVersions', g.currentVersionId)?.version,
       versions: vers.map((v) => ({ version: v.version, releasedAt: v.releasedAt, notes: v.notes, sizeBytes: v.sizeBytes, fileCount: v.files.length, placeholder: v.placeholder })),
     };

@@ -14,6 +14,7 @@ Lantern is one Node process with no dependencies. It needs **Node 22+** and, if 
 | `STRIPE_SECRET_KEY` | *(none)* | Turns on real payments with Stripe Checkout. Use a test key (`sk_test_…`) first. When unset, the fake "Lantern Wallet" is used. |
 | `STRIPE_WEBHOOK_SECRET` | *(none)* | Signing secret (`whsec_…`) for the webhook endpoint `PUBLIC_URL/api/stripe/webhook`. |
 | `CURRENCY` | `usd` | Checkout currency. |
+| `CREATOR_SHARE` | `0.9` | The creators' share of each sale, shown in the creator guide and on the Publish page. `0.9` means a 90/10 split. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(none)* | Enable "Continue with Google". |
 | `GAMES_ORIGIN` | *(none)* | Serve untrusted game files from a separate domain, e.g. `https://play.lanterngames.net`. Requires `PUBLIC_URL`. |
 | `NODE_ENV` | — | Set `production` on a host. This also happens automatically on Render. |
