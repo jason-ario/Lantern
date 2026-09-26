@@ -6,6 +6,8 @@ import { esc, toast } from '../ui.js';
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
 const CHECK_KEY = 'lantern.devChecklist.v1';
+// Mirrors server/ranking.js RANK; shown in the discovery section.
+let RANKDOC = state.discovery;
 
 // ---------- tiny syntax highlighter (tokenise raw text, then escape) ----------
 const KW = /^(const|let|var|await|async|function|return|if|else|for|of|new|try|catch|true|false|null)$/;
@@ -50,6 +52,7 @@ const TOC = [
   ['test', 'Test before you ship'],
   ['publish', 'Publishing'],
   ['updates', 'Updates'],
+  ['discovery', 'How discovery works'],
   ['sell', 'Selling well'],
   ['checklist', 'Launch checklist'],
   ['faq', 'Troubleshooting'],
@@ -255,7 +258,7 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
       <li><b>Write the store page.</b> Add a title (2–60 characters), developer name, a price, a short description of one or two sentences, a longer “About this game”, and up to 8 tags.</li>
       <li><b>Add media.</b> One key-art image (PNG, JPG or WebP, up to 8 MB) is used for the capsule, header and banner, cropped to fit each, so keep the title and hero in the centre. Add up to 6 screenshots, 16:9 at 1280×720 or larger. If you skip media, Lantern generates placeholder art.</li>
       <li><b>Choose the demo.</b> The 5-minute demo is on by default. When it ends, players see a buy screen, and their progress carries over when they buy.</li>
-      <li><b>Publish.</b> The store page, search listing and checkout go live instantly. Your developer name is reserved for your account.</li>
+      <li><b>Publish.</b> The store page, search listing and checkout go live instantly, and the game joins the <b>New on Lantern</b> shelf. Your developer name is reserved for your account.</li>
     </ol>
   </section>
 
@@ -268,6 +271,26 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
       <li><b>Saves carry over.</b> The same save keys are read by the new version. Migrate old data (see <a href="#saves">Saves that last</a>).</li>
       <li><b>You can add achievements</b> in an update by adding them to the manifest. Don't rename or remove existing ids, because players have already earned them.</li>
     </ul>
+  </section>
+
+  <section id="discovery" class="dv-sec">
+    <h2>How discovery works</h2>
+    <p>Nobody at Lantern hand-picks the store. Every shelf is built from how players actually play, so a great game from an unknown developer can beat a big name. There's no review queue and no fee to get in.</p>
+    <ol class="dv-steps">
+      <li><b>Discovery window.</b> Every new game goes on the <b>New on Lantern</b> shelf until it has had ${RANKDOC.windowPlayers} players or ${RANKDOC.windowDays} days pass. Games with the fewest players are shown first, so everyone gets a fair first audience.</li>
+      <li><b>Lantern Score.</b> Scores go from 0 to 100 and are built from five signals (below). Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.</li>
+      <li><b>Promotion.</b> After the window, games scoring <b>${RANKDOC.promoteAt}+</b> are promoted to the front page, Trending, Hidden gems and recommendations. The rest stay listed: searchable, buyable and with a store page. Scores update continuously, so a great update can get a game promoted later.</li>
+      <li><b>Launch health.</b> If most launches fail to connect to Lantern or throw uncaught errors, the game is taken off shelves until a fixed update is published.</li>
+    </ol>
+    <table class="dv-table"><thead><tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr></thead><tbody>
+      <tr><td>Hook</td><td>30%</td><td>Share of players who play 15+ minutes</td></tr>
+      <tr><td>Retention</td><td>25%</td><td>Share of players who come back on another day</td></tr>
+      <tr><td>Engagement</td><td>20%</td><td>Median minutes per player (full credit at 2 hours)</td></tr>
+      <tr><td>Conversion</td><td>15%</td><td>Paid games: demo players who buy. Free games: people who claim it and then actually play</td></tr>
+      <tr><td>Reach</td><td>10%</td><td>Players in the last 28 days</td></tr>
+    </tbody></table>
+    <p><b>Free and paid compete equally.</b> The score uses per-player rates, not revenue, so a free game can top the front page. Revenue only decides the <b>Top Sellers</b> shelf.</p>
+    <p><b>Fair counting.</b> Guest players count half, at most 3 players from one network count, and your own plays and purchases are ignored. You can see your game's score, every signal compared with the average promoted game, and your biggest opportunity under <b>Publish → Your games</b>.</p>
   </section>
 
   <section id="sell" class="dv-sec">
@@ -303,6 +326,7 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
 
 // ---------- render ----------
 export async function render(root) {
+  RANKDOC = state.discovery;
   CODES.length = 0;
   const share = state.features.creatorShare ?? 0.9;
   const pct = `${Math.round(share * 100)}%`;

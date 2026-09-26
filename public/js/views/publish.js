@@ -257,6 +257,43 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
   return null;
 }
 
+// ---------------- Discovery: how the algorithm sees each game ----------------
+const STATUS = {
+  new: ['New', 'In its discovery window on the “New on Lantern” shelf'],
+  promoted: ['Promoted', 'On the front page, shelves and recommendations'],
+  listed: ['Listed', 'In search and on its store page, not promoted yet'],
+  needs_fix: ['Needs fixing', 'Pulled from shelves: many launches fail or crash'],
+};
+const pctTxt = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+function rankChip(r) {
+  const [label] = STATUS[r.status] ?? ['—'];
+  return `<b>${label}</b><span>${r.status === 'new' && r.window ? `${Math.floor(r.window.players)}/${r.window.target} players` : `Score ${Math.round(r.score)}`}</span>`;
+}
+function rankDetail(r) {
+  const [label, desc] = STATUS[r.status] ?? ['', ''];
+  const obs = (f) => (f.key === 'engagement' ? (f.observed == null ? '—' : `${f.observed} min`) : f.key === 'reach' ? `${Math.round(f.observed)}` : pctTxt(f.observed));
+  const weakest = [...r.factors].filter((f) => f.key !== 'reach' && f.platform != null).sort((a, b) => (a.value - a.platform) - (b.value - b.platform))[0];
+  const h = r.health;
+  return `<div class="rk">
+    <div class="rk-head">
+      <div class="rk-score"><b>${Math.round(r.score)}</b><small>Lantern Score</small></div>
+      <div class="rk-status"><span class="rk-pill st-${esc(r.status)}">${label}</span><p>${desc}.</p>
+        ${r.window ? `<div class="rk-window"><div class="bar"><i style="width:${Math.min(100, (r.window.players / r.window.target) * 100)}%"></i></div><small>${Math.floor(r.window.players)} of ${r.window.target} players · ${r.window.daysLeft} days left in the discovery window. After that it's promoted if its score is ${r.promoteAt}+.</small></div>`
+          : r.status === 'listed' ? `<small class="muted">Promotion happens automatically at a score of ${r.promoteAt}. Scores update as people play.</small>` : ''}
+        ${r.status === 'needs_fix' ? `<small class="rk-warn">Only ${pctTxt(h.connectRate)} of recent launches connected to Lantern and ${pctTxt(h.errorRate)} hit uncaught errors. Fix the build and publish an update; it's re-checked automatically.</small>` : ''}
+      </div>
+      <div class="rk-conf"><small>Confidence</small><b>${Math.round(r.confidence * 100)}%</b><small>more players = more certain</small></div>
+    </div>
+    <table class="rk-table"><thead><tr><th>Signal</th><th>Weight</th><th>Your game</th><th>Contribution</th><th>Promoted avg</th></tr></thead><tbody>
+      ${r.factors.map((f) => `<tr><td><b>${esc(f.label)}</b><small>${esc(f.description)}</small></td><td>${Math.round(f.weight * 100)}%</td><td>${obs(f)}</td>
+        <td><div class="rk-bar"><i style="width:${Math.round(f.value * 100)}%"></i>${f.platform != null ? `<em style="left:${Math.round(f.platform * 100)}%"></em>` : ''}</div></td><td>${f.platform == null ? '—' : Math.round(f.platform * 100)}</td></tr>`).join('')}
+    </tbody></table>
+    ${weakest && r.confidence >= 0.3 ? `<p class="rk-tip"><b>Biggest opportunity: ${esc(weakest.label)}.</b> ${esc(weakest.tip)}</p>`
+      : r.confidence < 0.3 ? '<p class="rk-tip"><b>Not enough players yet to judge.</b> Share your store page link. The demo and the New shelf bring players in, and the score firms up after about 10 players.</p>' : ''}
+    <p class="muted small">Scores blend your real numbers with a neutral starting point until enough people have played, so a few players can't make or break a game. Guests count half, your own plays don't count, and at most 3 players per network count.${r.baseline ? ' This is a demo-catalog game: its numbers include a seeded baseline.' : ''} <a href="/developers#discovery" data-link>How discovery works</a></p>
+  </div>`;
+}
+
 // ---------------- Your games: publish updates ----------------
 const bump = (v) => { const [a, b, c] = v.split('.').map((n) => parseInt(n, 10) || 0); return `${a}.${b}.${c + 1}`; };
 async function renderMyGames(host) {
@@ -275,9 +312,12 @@ async function renderMyGames(host) {
         <span class="mg-notes muted small">${esc((g.versions[0]?.notes ?? '').slice(0, 120))}</span></div>
       ${g.priceCents ? `<div class="mg-sales" title="${g.sales.testCount ? `${g.sales.testCount} of these were demo-wallet test purchases. ` : ''}Your ${pct()} share is before payment processing fees, taxes and refunds.">
         <b>${money(g.sales.creatorCents)}</b><span class="muted small">your share · ${g.sales.count} sale${g.sales.count === 1 ? '' : 's'}${g.sales.testCount ? ` (${g.sales.testCount} test)` : ''}</span></div>` : '<div class="mg-sales"><b>Free</b><span class="muted small">' + g.owners + ' claimed</span></div>'}
+      ${g.ranking ? `<button class="mg-rank st-${esc(g.ranking.status)}" data-rank="${esc(g.id)}" title="How Lantern is ranking this game">${rankChip(g.ranking)}</button>` : ''}
       <div class="mg-actions"><a class="btn btn-ghost btn-sm" href="/app/${esc(g.id)}" data-link>Store page</a><button class="btn btn-buy btn-sm" data-update="${esc(g.id)}">Publish update</button></div>
-    </div>`).join('')}</div>`;
+    </div>${g.ranking ? `<div class="mg-detail" id="rank-${esc(g.id)}" hidden>${rankDetail(g.ranking)}</div>` : ''}`).join('')}</div>`;
   host.onclick = (e) => {
+    const rk = e.target.closest('[data-rank]');
+    if (rk) { const d = host.querySelector(`#rank-${CSS.escape(rk.dataset.rank)}`); d.hidden = !d.hidden; rk.classList.toggle('open', !d.hidden); return; }
     if (e.target.id === 'mgAll') { e.preventDefault(); host.dataset.all = showAll ? '0' : '1'; renderMyGames(host); return; }
     const b = e.target.closest('[data-update]');
     if (b) openUpdate(all.find((g) => g.id === b.dataset.update), () => renderMyGames(host));

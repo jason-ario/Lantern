@@ -176,3 +176,26 @@ Go to **Publish → Your games → Publish update**, upload a higher version and
 - Downloaded copies only fetch files that changed.
 - Keep existing achievement ids. You can add new ones.
 - Migrate old saves in code.
+
+## 10. How discovery works
+
+Nobody hand-picks the store. Every shelf is built from how players actually play, and there's no review queue or fee to get in.
+
+1. **Discovery window.** Every new game goes on the **New on Lantern** shelf until it has had 200 players or 30 days pass. Games with the fewest players are shown first, so each one gets a fair first audience.
+2. **Lantern Score (0–100).** Built from five signals. Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.
+3. **Promotion.** After the window, games scoring **45+** go to the front page, Trending, Hidden gems and recommendations. The rest stay listed: searchable, buyable and with a store page. Scores update continuously, so a good update can get a game promoted later.
+4. **Launch health.** If most launches fail to connect to Lantern or throw uncaught errors, the game is taken off shelves until a fixed update is published.
+
+| Signal | Weight | What it measures |
+|---|---|---|
+| Hook | 30% | Share of players who play 15+ minutes |
+| Retention | 25% | Share of players who come back on another day |
+| Engagement | 20% | Median minutes per player (full credit at 2 hours) |
+| Conversion | 15% | Paid: demo players who buy. Free: people who claim it and then actually play |
+| Reach | 10% | Players in the last 28 days |
+
+- **Free and paid compete equally.** The score uses per-player rates, not revenue, so a free game can top the front page. Revenue only decides **Top Sellers**.
+- **Fair counting.** Guest players count half, at most 3 players from one network count, and your own plays and purchases are ignored.
+- **See your numbers.** Under **Publish → Your games**, click a game's status to see its score, each signal compared with the average promoted game, and your biggest opportunity.
+
+The algorithm lives in [`server/ranking.js`](server/ranking.js), and its thresholds are in `RANK` at the top of that file.

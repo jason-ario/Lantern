@@ -1,5 +1,5 @@
-import { state, released } from '../state.js';
-import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, $, $$ } from '../ui.js';
+import { state, released, shelf, byDiscovery } from '../state.js';
+import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, rankBadges, compact, $, $$ } from '../ui.js';
 import { go } from '../nav.js';
 
 export function storeBar(active = 'home', q = '') {
@@ -8,6 +8,7 @@ export function storeBar(active = 'home', q = '') {
     <a href="/search?sort=new" data-link class="${active === 'new' ? 'on' : ''}">New &amp; Noteworthy</a>
     <a href="/search?demo=1" data-link class="${active === 'demo' ? 'on' : ''}">Instant Demos</a>
     <a href="/search?sort=top" data-link class="${active === 'top' ? 'on' : ''}">Top Sellers</a>
+    <a href="/search?sort=played" data-link class="${active === 'played' ? 'on' : ''}">Most Played</a>
     <form class="store-search" role="search" id="storeSearch">
       <input name="q" type="search" placeholder="Search the store" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
       <button aria-label="Search">${icons.search}</button>
@@ -28,7 +29,8 @@ function recommendations() {
   const weights = {};
   owned.forEach((g) => g.tags.forEach((t) => { weights[t] = (weights[t] ?? 0) + 1; }));
   const pool = released().filter((g) => !state.owned.has(g.id));
-  const scored = pool.map((g) => ({ g, s: g.tags.reduce((t, tag) => t + (weights[tag] ?? 0), 0) + g.rating?.pct / 100 }))
+  const pool2 = pool.filter((g) => g.rank?.status === 'promoted' || g.rank?.status === 'new');
+  const scored = pool2.map((g) => ({ g, s: g.tags.reduce((t, tag) => t + (weights[tag] ?? 0), 0) + (g.rank?.score ?? 0) / 50 }))
     .sort((a, b) => b.s - a.s);
   const basis = owned.sort((a, b) => b.tags.filter((t) => weights[t] > 1).length - a.tags.filter((t) => weights[t] > 1).length)[0];
   return { basis, games: scored.slice(0, 4).map((x) => x.g) };
@@ -41,7 +43,7 @@ function listRow(g) {
     <div class="lr-body">
       <div class="lr-title">${esc(g.title)}</div>
       <div class="lr-tags">${g.tags.slice(0, 4).map(esc).join(', ')}</div>
-      <div class="lr-sub">${g.status === 'coming_soon' ? `Releases ${date(g.releaseDate)}` : `<span class="${r.cls}">${r.label}</span>`}${g.demo ? ' · <span class="demo-inline">Instant demo</span>' : ''}</div>
+      <div class="lr-sub">${g.status === 'coming_soon' ? `Releases ${date(g.releaseDate)}` : `<span class="${r.cls}">${r.label}</span>`}${g.demo ? ' · <span class="demo-inline">Instant demo</span>' : ''} ${rankBadges(g, 1)}</div>
     </div>
     <div class="lr-price">${priceTag(g, { compact: true })}</div>
   </a>`;
@@ -57,12 +59,17 @@ function preview(g) {
 }
 
 export async function render(root) {
-  const feat = released().filter((g) => g.featured);
-  const demos = released().filter((g) => g.demo);
-  const trending = [...released()].sort((a, b) => b.stats.trend - a.stats.trend).slice(0, 10);
+  // Every shelf is algorithmic (see server/ranking.js); nothing here is hand-picked.
+  const feat = shelf('featured').length ? shelf('featured') : released().slice(0, 5);
+  const fresh = shelf('new');
+  const demos = released().filter((g) => g.demo && g.rank?.status !== 'needs_fix' && g.rank?.status !== 'listed').sort(byDiscovery).slice(0, 6);
+  const trending = shelf('trending');
+  const gems = shelf('gems');
+  const free = shelf('free');
   const tabs = {
-    new: [...released()].sort((a, b) => b.releaseDate.localeCompare(a.releaseDate)).slice(0, 8),
-    top: [...released()].sort((a, b) => b.stats.sales - a.stats.sales).slice(0, 8),
+    top: shelf('top').slice(0, 8),
+    played: shelf('played').slice(0, 8),
+    new: fresh.slice(0, 8),
     soon: state.games.filter((g) => g.status === 'coming_soon').sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
   };
   const rec = recommendations();
@@ -79,6 +86,11 @@ export async function render(root) {
       </div>
       <div class="dots" id="featDots">${feat.map((_, i) => `<button data-i="${i}" aria-label="Featured ${i + 1}"></button>`).join('')}</div>
     </section>
+
+    ${fresh.length ? `<section class="block">
+      <div class="sec-h"><h2>New on Lantern</h2><span class="sec-note">Every new game gets a spot here while it finds its first players</span><a href="/search?sort=new" data-link>See all</a></div>
+      <div class="capsule-grid new-grid">${fresh.slice(0, 4).map((g) => capsule(g)).join('')}</div>
+    </section>` : ''}
 
     <section class="block instant">
       <div class="sec-h"><h2><span class="bolt">${icons.bolt}</span> Play instantly — no download, no install</h2><a href="/search?demo=1" data-link>See all</a></div>
@@ -104,13 +116,23 @@ export async function render(root) {
 
     <section class="block">
       <div class="tabs" role="tablist">
-        <button class="on" data-tab="new">New Releases</button><button data-tab="top">Top Sellers</button><button data-tab="soon">Coming Soon</button>
+        <button class="on" data-tab="top">Top Sellers</button><button data-tab="played">Most Played</button><button data-tab="new">New Releases</button><button data-tab="soon">Coming Soon</button>
       </div>
       <div class="tabbed">
         <div class="tab-list" id="tabList"></div>
         <aside class="tab-preview" id="tabPreview"></aside>
       </div>
     </section>
+
+    ${gems.length ? `<section class="block">
+      <div class="sec-h"><h2>Hidden gems</h2><span class="sec-note">Players who find these keep playing, but not many have found them yet</span></div>
+      <div class="capsule-grid">${gems.slice(0, 4).map((g) => capsule(g)).join('')}</div>
+    </section>` : ''}
+
+    ${free.length ? `<section class="block">
+      <div class="sec-h"><h2>Free &amp; great</h2><span class="sec-note">Free games players are actually hooked on</span><a href="/search?max=0" data-link>See all free</a></div>
+      <div class="capsule-grid">${free.slice(0, 4).map((g) => capsule(g)).join('')}</div>
+    </section>` : ''}
 
     ${rec.games.length ? `<section class="block">
       <div class="sec-h"><h2>Recommended for you</h2>${rec.basis ? `<span class="sec-note">Because you play <a href="/app/${esc(rec.basis.id)}" data-link>${esc(rec.basis.title)}</a></span>` : ''}</div>
@@ -140,7 +162,7 @@ export async function render(root) {
     $('#featSide', root).innerHTML = `
       <div class="fs-title">${esc(g.title)}</div>
       <div class="fs-shots">${g.media.screenshots.slice(0, 4).map((s) => `<div style="background-image:url('${esc(s)}')"></div>`).join('')}</div>
-      <div class="fs-status">${state.owned.has(g.id) ? 'In your library' : 'Now available'}</div>
+      <div class="fs-status">${state.owned.has(g.id) ? 'In your library' : g.rank?.players >= 10 ? `${compact(g.rank.players)} players this month` : 'Now available'} ${rankBadges(g, 2)}</div>
       <div class="fs-tags">${tagChips(g.tags, 4)}</div>
       <div class="fs-foot"><span class="${r.cls}">${r.label}</span>${g.demo ? '<span class="demo-inline">Instant demo</span>' : ''}${priceTag(g)}</div>`;
     $$('#featDots button', root).forEach((b, j) => b.classList.toggle('on', j === fi));
@@ -170,7 +192,7 @@ export async function render(root) {
     $$('#tabList .list-row', root).forEach((r) => r.classList.toggle('hot', r === row));
     $('#tabPreview', root).innerHTML = preview(state.byId.get(row.dataset.preview));
   });
-  showTab('new');
+  showTab('top');
 
   return () => clearInterval(timer);
 }

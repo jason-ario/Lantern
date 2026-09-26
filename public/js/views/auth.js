@@ -37,7 +37,8 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
       };
       el.querySelector('.auth-tabs').onclick = (e) => { if (e.target.dataset.tab) setMode(e.target.dataset.tab); };
       setMode(mode);
-      setTimeout(() => (current === 'signup' ? f.elements.displayName : f.elements.email).focus(), 50);
+      // Focus the first field, but never steal focus from a field the user (or autofill) is already typing in.
+      setTimeout(() => { if (!f.contains(document.activeElement)) (current === 'signup' ? f.elements.displayName : f.elements.email).focus(); }, 50);
       f.onsubmit = async (e) => {
         e.preventDefault();
         const btn = el.querySelector('#authSubmit');

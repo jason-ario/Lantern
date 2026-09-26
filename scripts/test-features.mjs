@@ -175,7 +175,7 @@ try {
     await buyer.page.waitForSelector('#rtSplash.gone', { state: 'attached', timeout: 15000 });
     await sf.waitForFunction(() => document.getElementById('total')?.textContent === '0');
     const box = await buyer.page.$eval('#rtFrame, iframe', (e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
-    for (let i = 0; i < 120 && (await sf.textContent('#score')) === '0'; i++) await buyer.page.mouse.click(box.x + Math.random() * box.w, box.y + box.h * (0.2 + Math.random() * 0.7));
+    for (let i = 0; i < 500 && (await sf.textContent('#score')) === '0'; i++) await buyer.page.mouse.click(box.x + Math.random() * box.w, box.y + box.h * (0.2 + Math.random() * 0.7));
     await quit(buyer.page);
     const bs = await buyer.api('GET', `/api/games/${starter.body.gameId}/saves`);
     const ba = await buyer.api('GET', `/api/games/${starter.body.gameId}/achievements`);
@@ -183,6 +183,15 @@ try {
     await buyer.ctx.close();
     const mine = (await api('GET', '/api/creator/games')).body.find((x) => x.id === starter.body.gameId);
     check('Creator sees the sale and a 90% share', mine.sales.count === 1 && mine.sales.creatorCents === 449, JSON.stringify(mine.sales));
+    // Discovery: new games enter the discovery window; launch health is reported by the runtime.
+    check('New game is in its discovery window, launch health recorded', mine.ranking?.status === 'new' && mine.ranking.window.players > 0 && mine.ranking.health.sdkGame === true, JSON.stringify({ s: mine.ranking?.status, w: mine.ranking?.window, h: mine.ranking?.health }));
+    const cat = (await api('GET', '/api/catalog')).body;
+    check("Store shelves are algorithmic and include the new game", cat.shelves.new.includes(starter.body.gameId) && cat.shelves.featured.length > 0 && cat.games.every((x) => x.status !== 'released' || x.rank), cat.shelves.new.join(','));
+    await page.goto(`${A}/store`); await page.waitForSelector('.feat-main');
+    check('Store shows the New on Lantern shelf', (await page.textContent('.new-grid')).includes('Firefly Jar'));
+    await page.goto(`${A}/publish`); await page.waitForSelector(`[data-rank="${starter.body.gameId}"]`);
+    await page.click(`[data-rank="${starter.body.gameId}"]`);
+    check('Publish page explains the score, signal by signal', (await page.$$(`#rank-${starter.body.gameId} .rk-table tbody tr`)).length === 5 && await page.isVisible(`#rank-${starter.body.gameId} .rk-window`));
     await ctx.close();
   }
 

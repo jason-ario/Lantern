@@ -11,9 +11,9 @@ Everything runs from one process. `data/db.json` is created on first start.
 
 Locally, publishing and site reset are open to you. Every browser gets its own guest account; set `ACCOUNT_MODE=single` for the old shared "Jason" demo account.
 
-**Features added since the prototype:** real accounts (email + password, Google), Stripe Checkout, signed game packages, a separate games domain, offline play from a verified local cache, and publishing updates with delta downloads. See [DEPLOY.md](DEPLOY.md) for how to switch each on.
+**Features added since the prototype:** real accounts (email + password, Google), Stripe Checkout, signed game packages, a separate games domain, offline play from a verified local cache, publishing updates with delta downloads, and algorithmic store curation: shelves are built from player behaviour (hook, retention, engagement, conversion, reach) with a discovery window for new games. See [CREATORS.md](CREATORS.md#10-how-discovery-works). See [DEPLOY.md](DEPLOY.md) for how to switch each on.
 
-**Tests:** `npm run test:e2e` (platform), `npm run test:nightpaw` (plays through Nightpaw) and `npm run test:features` (accounts, offline, updates, Stripe against a fake API, games origin). All three need a running server except `test:features`, which starts its own.
+**Tests:** `npm run test:e2e` (platform), `npm run test:nightpaw` (plays through Nightpaw) `npm run test:features` (accounts, offline, updates, Stripe against a fake API, games origin, discovery) and `npm run test:ranking` (the ranking algorithm on synthetic play data). The first two need a running server; the other two start what they need.
 
 **Deploying:** see [DEPLOY.md](DEPLOY.md). In short: Render Web Service, start command `node server/index.js`, and an `ADMIN_PASSWORD` environment variable. For data that survives restarts, also add a disk and set `DATA_DIR`.
 

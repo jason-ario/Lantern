@@ -121,6 +121,7 @@ export class GameRuntime {
     this.tokens = RATE.burst;
     this.lastRefill = performance.now();
     this.activeSeconds = 0;
+    this.health = { connected: false, errors: 0 }; // reported to the platform for the launch-health check
     this.paused = false;
     this.closing = false;
     this.closed = false;
@@ -152,9 +153,9 @@ export class GameRuntime {
       this.cb.onTick?.(this.activeSeconds);
     }, 1000);
     this.heartbeat = setInterval(() => {
-      this.services.runtime.heartbeat(this.launch.session.id, this.activeSeconds).catch(() => {});
+      this.services.runtime.heartbeat(this.launch.session.id, this.activeSeconds, this.health).catch(() => {});
     }, HEARTBEAT_MS);
-    this.onUnload = () => { this.services.runtime.end(this.launch.session.id, this.activeSeconds, { keepalive: true }).catch(() => {}); };
+    this.onUnload = () => { this.services.runtime.end(this.launch.session.id, this.activeSeconds, { keepalive: true, health: this.health }).catch(() => {}); };
     window.addEventListener('pagehide', this.onUnload);
   }
 
@@ -186,12 +187,14 @@ export class GameRuntime {
     // Target '*' is required: the sandboxed frame has an opaque origin. The port
     // itself is only transferable to that exact window, so nothing else receives it.
     this.frame.contentWindow.postMessage({ type: 'lantern:init', protocol: 1, context }, '*', [ch.port2]);
+    this.health.connected = true;
     this.cb.onConnected?.();
   }
 
   onPortMessage(msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.event === 'exit-ready') { this.exitReady?.(); return; }
+    if (msg.event === 'error') { this.health.errors = Math.min(999, this.health.errors + 1); return; }
     if (typeof msg.id !== 'number') return;
     const p = this.handle(msg.method, msg.params ?? {})
       .then((result) => this.port?.postMessage({ id: msg.id, result }))
@@ -283,7 +286,7 @@ export class GameRuntime {
     }
     await Promise.race([Promise.allSettled([...this.inFlight]), new Promise((r) => setTimeout(r, EXIT_GRACE_MS))]);
     this.destroy();
-    await this.services.runtime.end(this.launch.session.id, this.activeSeconds).catch(() => {});
+    await this.services.runtime.end(this.launch.session.id, this.activeSeconds, { health: this.health }).catch(() => {});
   }
 
   destroy() {

@@ -12,6 +12,8 @@ export const state = {
   games: [],
   byId: new Map(),
   tags: [],
+  shelves: {},
+  discovery: { promoteAt: 45, windowPlayers: 200, windowDays: 30 }, // algorithmic store shelves from the server (ids)
   running: null, // { gameId } while a game is open
 };
 
@@ -35,6 +37,8 @@ export async function loadCatalog() {
   state.games = c.games;
   state.byId = new Map(c.games.map((g) => [g.id, g]));
   state.tags = c.tags;
+  state.shelves = c.shelves ?? {};
+  if (c.discovery) state.discovery = c.discovery;
   emit();
 }
 
@@ -57,3 +61,8 @@ export async function purchase(id) {
 
 export const game = (id) => state.byId.get(id);
 export const released = () => state.games.filter((g) => g.status === 'released');
+// Resolve a server shelf (list of ids) to games, dropping any that vanished.
+export const shelf = (name) => (state.shelves[name] ?? []).map((id) => state.byId.get(id)).filter(Boolean);
+// Discovery order for lists: promoted/new first, then listed, games needing fixes last.
+const STATUS_ORDER = { promoted: 0, new: 1, listed: 2, needs_fix: 3 };
+export const byDiscovery = (a, b) => (STATUS_ORDER[a.rank?.status] ?? 2) - (STATUS_ORDER[b.rank?.status] ?? 2) || (b.rank?.score ?? 0) - (a.rank?.score ?? 0);

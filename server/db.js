@@ -15,6 +15,8 @@ export const TABLES = [
 let file = null;
 let data = null;
 let writeTimer = null;
+let rev = 0; // bumps on every write; lets derived data (rankings) know when to recompute
+export const revision = () => rev;
 
 export function open(dbFile, seedFn) {
   file = dbFile;
@@ -28,6 +30,7 @@ export function open(dbFile, seedFn) {
 }
 
 export function reset(seedFn) {
+  rev++;
   data = Object.fromEntries(TABLES.map((t) => [t, []]));
   seedFn?.();
   flush();
@@ -63,6 +66,7 @@ export function remove(table, pred) {
 // Debounced atomic write: write temp file then rename, so a crash never leaves
 // a half-written database.
 function schedule() {
+  rev++;
   clearTimeout(writeTimer);
   writeTimer = setTimeout(flush, 50);
 }

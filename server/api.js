@@ -9,6 +9,7 @@ import * as db from './db.js';
 import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
 import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
+import { rankings, publicRank, creatorRank } from './ranking.js';
 import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE } from './config.js';
 import { hashPassword, verifyPassword, EMAIL_RE, uniqueUsername, mergeUsers, googleEnabled, googleStartUrl, googleFinish } from './auth.js';
 import { stripeEnabled, createCheckoutSession, retrieveCheckoutSession, verifyWebhook } from './payments.js';
@@ -111,6 +112,7 @@ function publicGame(g) {
       sdk: ver.sdk, runtime: ver.runtime, input: ver.input, releasedAt: ver.releasedAt, placeholder: ver.placeholder, notes: ver.notes,
     } : null,
     updatedAt: ver?.releasedAt ?? null,
+    rank: publicRank(rankings().byGame.get(g.id)),
   };
 }
 
@@ -141,9 +143,10 @@ route('GET', '/api/state', ({ user, session }) => userState(user, session));
 
 route('GET', '/api/catalog', () => {
   const games = db.all('games').map(publicGame);
+  const { shelves, thresholds } = rankings();
   const counts = {};
   games.forEach((g) => g.tags.forEach((t) => { counts[t] = (counts[t] ?? 0) + 1; }));
-  return { games, tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })) };
+  return { games, shelves, discovery: thresholds, tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })) };
 });
 
 route('GET', '/api/games/:id', ({ user, session, params }) => {
@@ -189,7 +192,7 @@ route('GET', '/api/library', ({ user, session }) => db.filter('ownerships', (o) 
 })));
 
 // ----- runtime sessions -----
-route('POST', '/api/games/:id/launch', ({ user, session, params, body }) => {
+route('POST', '/api/games/:id/launch', ({ user, session, params, body, ctx }) => {
   const g = requireGame(params.id);
   const mode = body?.mode === 'demo' ? 'demo' : 'full';
   const owned = owns(user.id, g.id);
@@ -199,7 +202,7 @@ route('POST', '/api/games/:id/launch', ({ user, session, params, body }) => {
   const ver = db.get('gameVersions', g.currentVersionId);
   // Close any dangling session for this game (e.g. tab was killed).
   db.filter('playSessions', (s) => s.userId === user.id && s.gameId === g.id && !s.endedAt).forEach((s) => db.update(s, { endedAt: s.lastHeartbeatAt }));
-  const play = db.insert('playSessions', { id: db.id('ses'), userId: user.id, gameId: g.id, versionId: ver.id, mode: owned ? 'full' : mode, startedAt: db.now(), lastHeartbeatAt: db.now(), endedAt: null, seconds: 0 });
+  const play = db.insert('playSessions', { id: db.id('ses'), userId: user.id, gameId: g.id, versionId: ver.id, mode: owned ? 'full' : mode, startedAt: db.now(), lastHeartbeatAt: db.now(), endedAt: null, seconds: 0, ipHash: ipHash(ctx?.ip) });
   return {
     session: { id: play.id, mode: play.mode, startedAt: play.startedAt, demoSeconds: play.mode === 'demo' ? g.demo.minutes * 60 : null },
     build: { url: `${GAMES_ORIGIN}/games/${ver.packagePath}/${ver.entry}`, baseUrl: `${GAMES_ORIGIN}/games/${ver.packagePath}/`, entry: ver.entry, version: ver.version, buildHash: ver.buildHash, sizeBytes: ver.sizeBytes, fileCount: ver.files.length, sdk: ver.sdk },
@@ -209,17 +212,25 @@ route('POST', '/api/games/:id/launch', ({ user, session, params, body }) => {
   };
 });
 
-function updateSession(user, sid, activeSeconds, end) {
+// A salted hash of the player's IP, only used to cap how many accounts per address count towards rankings.
+const ipHash = (ip) => (ip ? crypto.createHash('sha256').update(`${ip}:lantern-rank`).digest('hex').slice(0, 12) : null);
+// Launch health reported by the runtime: did the SDK connect, how many uncaught errors.
+function healthPatch(s, health) {
+  if (!health || typeof health !== 'object') return {};
+  const errors = Math.max(0, Math.min(999, Math.floor(Number(health.errors) || 0)));
+  return { connected: !!health.connected || !!s.connected, errors: Math.max(errors, s.errors ?? 0) };
+}
+function updateSession(user, sid, activeSeconds, end, health) {
   const s = db.get('playSessions', sid);
   if (!s || s.userId !== user.id) fail(404, 'Session not found');
   if (s.endedAt) return { ok: true, seconds: s.seconds };
   const wall = (Date.now() - Date.parse(s.startedAt)) / 1000;
   const secs = Math.max(s.seconds, Math.min(Math.floor(Number(activeSeconds) || 0), Math.ceil(wall) + 5));
-  db.update(s, { seconds: secs, lastHeartbeatAt: db.now(), ...(end ? { endedAt: db.now() } : {}) });
+  db.update(s, { seconds: secs, lastHeartbeatAt: db.now(), ...healthPatch(s, health), ...(end ? { endedAt: db.now() } : {}) });
   return { ok: true, seconds: secs };
 }
-route('POST', '/api/sessions/:sid/heartbeat', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, false));
-route('POST', '/api/sessions/:sid/end', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, true));
+route('POST', '/api/sessions/:sid/heartbeat', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, false, body?.health));
+route('POST', '/api/sessions/:sid/end', ({ user, session, params, body }) => updateSession(user, params.sid, body?.activeSeconds, true, body?.health));
 
 // ----- cloud saves -----
 function saveGuard(user, gameId) {
@@ -449,7 +460,7 @@ route('GET', '/api/games/:id/build', ({ user, params }) => {
 });
 
 // Sessions played while offline are uploaded when the player reconnects.
-route('POST', '/api/sessions/offline', ({ user, body }) => {
+route('POST', '/api/sessions/offline', ({ user, body, ctx }) => {
   const g = requireGame(String(body?.gameId ?? ''));
   if (!owns(user.id, g.id)) fail(403, 'You do not own this game');
   const started = Date.parse(body?.startedAt);
@@ -457,7 +468,7 @@ route('POST', '/api/sessions/offline', ({ user, body }) => {
   if (!Number.isFinite(started) || started > Date.now() + 60e3 || started < Date.now() - 30 * 86400e3) fail(400, 'Bad session time');
   const clientId = String(body?.clientId ?? '').slice(0, 64);
   if (clientId && db.find('playSessions', (s) => s.userId === user.id && s.clientId === clientId)) return { ok: true, duplicate: true };
-  db.insert('playSessions', { id: db.id('ses'), clientId: clientId || null, userId: user.id, gameId: g.id, versionId: g.currentVersionId, mode: 'offline', startedAt: new Date(started).toISOString(), lastHeartbeatAt: new Date(started + seconds * 1000).toISOString(), endedAt: new Date(started + seconds * 1000).toISOString(), seconds });
+  db.insert('playSessions', { id: db.id('ses'), clientId: clientId || null, userId: user.id, gameId: g.id, versionId: g.currentVersionId, mode: 'offline', startedAt: new Date(started).toISOString(), lastHeartbeatAt: new Date(started + seconds * 1000).toISOString(), endedAt: new Date(started + seconds * 1000).toISOString(), seconds, ipHash: ipHash(ctx?.ip), ...healthPatch({}, body?.health) });
   return { ok: true };
 });
 
@@ -635,8 +646,9 @@ route('GET', '/api/creator/games', ({ user, session }) => {
     return {
       id: g.id, title: g.title, media: g.media, source: g.source, priceCents: g.priceCents, mine: g.publishedBy === user.id,
       placeholder: !!db.get('gameVersions', g.currentVersionId)?.placeholder,
-      owners: db.filter('ownerships', (o) => o.gameId === g.id).length,
+      owners: db.filter('ownerships', (o) => o.gameId === g.id && o.source !== 'developer').length,
       sales: salesSummary(g.id),
+      ranking: creatorRank(rankings().byGame.get(g.id), rankings().platform),
       currentVersion: db.get('gameVersions', g.currentVersionId)?.version,
       versions: vers.map((v) => ({ version: v.version, releasedAt: v.releasedAt, notes: v.notes, sizeBytes: v.sizeBytes, fileCount: v.files.length, placeholder: v.placeholder })),
     };

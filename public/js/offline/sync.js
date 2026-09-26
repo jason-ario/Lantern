@@ -35,7 +35,7 @@ export function flush() {
         if (i.kind === 'save') await api.saves.put(i.gameId, i.key, i.value);
         else if (i.kind === 'remove') await api.saves.remove(i.gameId, i.key);
         else if (i.kind === 'ach') await api.achievements.unlock(i.gameId, i.key);
-        else if (i.kind === 'session') await api.runtime.offlineSession({ gameId: i.gameId, startedAt: i.startedAt, seconds: i.seconds, clientId: i.clientId });
+        else if (i.kind === 'session') await api.runtime.offlineSession({ gameId: i.gameId, startedAt: i.startedAt, seconds: i.seconds, clientId: i.clientId, health: i.health });
         sent++;
       } catch (e) {
         if (isNetworkError(e)) break; // still offline — try again later
@@ -112,11 +112,11 @@ export const services = {
     },
   },
   runtime: {
-    heartbeat: (sid, secs) => (String(sid).startsWith('local_') ? Promise.resolve({ ok: true }) : api.runtime.heartbeat(sid, secs)),
+    heartbeat: (sid, secs, health) => (String(sid).startsWith('local_') ? Promise.resolve({ ok: true }) : api.runtime.heartbeat(sid, secs, health)),
     async end(sid, secs, opts) {
       if (String(sid).startsWith('local_')) {
         const s = localSessions.get(sid);
-        if (s && secs > 0) enqueue({ kind: 'session', gameId: s.gameId, startedAt: s.startedAt, seconds: secs, clientId: sid });
+        if (s && secs > 0) enqueue({ kind: 'session', gameId: s.gameId, startedAt: s.startedAt, seconds: secs, clientId: sid, health: opts?.health });
         localSessions.delete(sid);
         flush();
         return { ok: true };

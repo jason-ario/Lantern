@@ -76,6 +76,17 @@
     else if (d.event === 'resume') handlers.resume.forEach(safe);
   }
 
+  // Uncaught errors are counted by the platform (launch health). Only a count and a
+  // short message leave the game, capped so a broken loop can't flood the channel.
+  var reportedErrors = 0;
+  function reportError(msg) {
+    if (reportedErrors++ >= 20) return;
+    var m = { event: 'error', message: String(msg || 'Error').slice(0, 200) };
+    if (port) port.postMessage(m); else queue.push(m);
+  }
+  window.addEventListener('error', function (e) { reportError(e && e.message); });
+  window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; reportError(r && r.message ? r.message : r); });
+
   function safe(fn) { try { return fn(); } catch (err) { console.error('[Lantern SDK] handler error', err); } }
 
   function runExitHandlers() {

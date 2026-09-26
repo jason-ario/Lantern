@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, toggleWishlist, onChange } from '../state.js';
-import { esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, $, $$ } from '../ui.js';
+import { esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, $, $$ } from '../ui.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { openCheckout } from './checkout.js';
 
@@ -58,8 +58,10 @@ export async function render(root, [id], query) {
       <aside class="gp-side">
         <div class="gp-capsule" style="background-image:url('${esc(g.media.header)}')">${logo(g, 'md')}</div>
         <p class="gp-short">${esc(g.shortDescription)}</p>
+        ${g.rank?.badges?.length ? `<div class="gp-badges">${rankBadges(g, 3)}</div>` : ''}
         <dl class="gp-facts">
           <dt>All reviews</dt><dd><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</dd>
+          ${g.rank && g.rank.status !== 'new' && g.rank.players >= 10 ? `<dt>Players</dt><dd>${compact(g.rank.players)} this month · ~${g.rank.medianMinutes} min typical</dd>` : ''}
           <dt>Release date</dt><dd>${date(g.releaseDate)}${g.status === 'coming_soon' ? ' <span class="soon-pill">Upcoming</span>' : ''}</dd>
           <dt>Developer</dt><dd><a href="/search?dev=${encodeURIComponent(g.developer?.id ?? '')}" data-link>${esc(g.developer?.name)}</a></dd>
           <dt>Publisher</dt><dd>${esc(g.developer?.name)}</dd>

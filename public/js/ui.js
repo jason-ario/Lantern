@@ -56,10 +56,17 @@ export function priceTag(g, { compact = false } = {}) {
 }
 
 // Landscape capsule (header art)
+// Discovery badges (New, Trending, Hidden gem, Top seller) and compact player counts.
+const BADGE_CLS = { New: 'b-new', Trending: 'b-trend', 'Hidden gem': 'b-gem', 'Top seller': 'b-top' };
+export function rankBadges(g, max = 2) {
+  return (g.rank?.badges ?? []).slice(0, max).map((b) => `<span class="rank-badge ${BADGE_CLS[b] ?? ''}">${esc(b)}</span>`).join('');
+}
+export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n)));
+
 export function capsule(g, { size = 'md', showPrice = true, badge = true } = {}) {
   const demo = g.demo && !state.owned.has(g.id) && badge ? '<span class="badge-demo">▶ Instant demo</span>' : '';
   return `<a class="capsule capsule-${size}" href="/app/${esc(g.id)}" data-link>
-    <div class="art" style="background-image:url('${esc(g.media.header)}')">${logo(g, size === 'lg' ? 'lg' : 'sm')}${demo}</div>
+    <div class="art" style="background-image:url('${esc(g.media.header)}')">${logo(g, size === 'lg' ? 'lg' : 'sm')}${demo}${badge && g.rank?.badges?.length ? `<span class="art-badges">${rankBadges(g, 1)}</span>` : ''}</div>
     <div class="meta"><div class="t">${esc(g.title)}</div>${showPrice ? priceTag(g, { compact: true }) : ''}</div>
   </a>`;
 }

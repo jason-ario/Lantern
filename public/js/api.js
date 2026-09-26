@@ -73,8 +73,8 @@ export const api = {
   // dependency; games never see them.
   runtime: {
     launch: (id, mode) => request('POST', `/api/games/${enc(id)}/launch`, { mode }),
-    heartbeat: (sid, activeSeconds) => request('POST', `/api/sessions/${enc(sid)}/heartbeat`, { activeSeconds }),
-    end: (sid, activeSeconds, opts) => request('POST', `/api/sessions/${enc(sid)}/end`, { activeSeconds }, opts),
+    heartbeat: (sid, activeSeconds, health) => request('POST', `/api/sessions/${enc(sid)}/heartbeat`, { activeSeconds, health }),
+    end: (sid, activeSeconds, opts) => request('POST', `/api/sessions/${enc(sid)}/end`, { activeSeconds, health: opts?.health }, opts),
     offlineSession: (s) => request('POST', '/api/sessions/offline', s),
   },
   saves: {
