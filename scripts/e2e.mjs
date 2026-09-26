@@ -24,7 +24,7 @@ const api = (method, path, data) => page.request.fetch(`${BASE}${path}`, { metho
 const shot = (name) => page.screenshot({ path: `${OUT}/${name}.png` });
 const gameFrame = async () => {
   for (let i = 0; i < 50; i++) {
-    const f = page.frames().find((fr) => fr.url().includes('/games/'));
+    const f = page.frames().find((fr) => fr !== page.mainFrame() && (fr.url().includes('/games/') || fr.url() === 'about:srcdoc'));
     if (f) return f;
     await page.waitForTimeout(100);
   }
@@ -202,7 +202,7 @@ check('Published game has a store page', (await page.textContent('.gp-head h1'))
 await page.click('.owned-box .btn-play');
 frame = await gameFrame();
 await waitSplashGone();
-check('Published game launches', frame.url().includes('/games/skylark/1.0.0/'));
+check('Published game launches', !!frame && (await page.textContent('#rtVer')) === 'v1.0.0', `${frame.url()} · ${await page.textContent('#rtSrc')}`);
 await quitGame();
 
 // ---- direct URL instant play (web: URL → instantly try) ----

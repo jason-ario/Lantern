@@ -13,6 +13,8 @@
     "build:art": "node scripts/build-art.js",
     "build:sample": "node scripts/build-sample.js",
     "test:e2e": "node scripts/e2e.mjs",
-    "test:nightpaw": "node scripts/qa-nightpaw.mjs"
+    "test:nightpaw": "node scripts/qa-nightpaw.mjs",
+    "test:features": "node scripts/test-features.mjs",
+    "gen:signing-key": "node scripts/gen-signing-key.mjs"
   }
 }

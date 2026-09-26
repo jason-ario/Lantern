@@ -15,6 +15,12 @@ services:
         value: /var/data
       - key: ADMIN_PASSWORD
         sync: false          # prompted on creation; never committed to git
+      - key: PUBLIC_URL      # e.g. https://lantern.onrender.com (needed for Stripe/Google redirects)
+        sync: false
+      - key: PACKAGE_SIGNING_KEY   # npm run gen:signing-key — keep stable
+        sync: false
+      # Optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID,
+      # GOOGLE_CLIENT_SECRET, GAMES_ORIGIN — see DEPLOY.md
     disk:
       name: lantern-data
       mountPath: /var/data

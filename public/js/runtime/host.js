@@ -21,6 +21,89 @@ const RATE = { perSecond: 30, burst: 60 };
 const HEARTBEAT_MS = 30_000;
 const EXIT_GRACE_MS = 2000;
 
+// ---------------------------------------------------------------------------
+// LOCAL (offline) BUILDS
+// A sandboxed frame can't be served by a service worker, so for builds from the
+// verified local package cache the runtime ships the files into the frame
+// itself. The frame is still sandboxed with an opaque origin; the tiny
+// bootstrap below turns the files into in-frame blob: URLs, points relative
+// URLs (script/link/img/audio src, fetch, XHR, Worker, CSS url()) at them and
+// then writes the game's entry document. The platform's per-page CSP nonce is
+// required to run it (srcdoc frames inherit the platform CSP).
+// ---------------------------------------------------------------------------
+const VFS_BOOTSTRAP = String.raw`(() => {
+  const P = window.parent;
+  addEventListener('message', function once(e) {
+    if (e.source !== P || !e.data || e.data.type !== 'lantern:vfs') return;
+    removeEventListener('message', once);
+    boot(e.data);
+  });
+  P.postMessage({ type: 'lantern:vfs-ready' }, '*');
+  function boot({ files, entry, sdk, nonce }) {
+    const dirOf = (p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1) : '';
+    const base = dirOf(entry);
+    const urls = new Map(), text = new Map();
+    const dec = new TextDecoder();
+    for (const f of files) {
+      urls.set(f.path, URL.createObjectURL(new Blob([f.buf], { type: f.type })));
+      if (/^text\/|json|javascript|svg/.test(f.type)) text.set(f.path, dec.decode(f.buf));
+    }
+    const norm = (u, from) => {
+      if (typeof u !== 'string' || !u || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(u)) return null;
+      u = u.split('#')[0].split('?')[0];
+      const parts = (u.startsWith('/') ? u.slice(1) : (from ?? base) + u).split('/');
+      const out = [];
+      for (const seg of parts) { if (seg === '..') out.pop(); else if (seg !== '.' && seg !== '') out.push(seg); }
+      try { return decodeURIComponent(out.join('/')); } catch { return out.join('/'); }
+    };
+    const resolve = (u, from) => { const p = norm(u, from); return p !== null && urls.has(p) ? urls.get(p) : null; };
+    const rf = window.fetch.bind(window);
+    window.fetch = (input, init) => { const u = typeof input === 'string' ? input : input && input.url; const b = resolve(u); return rf(b || input, init); };
+    const xo = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (m, u, ...r) { return xo.call(this, m, resolve(String(u)) || u, ...r); };
+    for (const [C, a] of [[HTMLImageElement, 'src'], [HTMLMediaElement, 'src'], [HTMLSourceElement, 'src'], [HTMLScriptElement, 'src'], [HTMLLinkElement, 'href']]) {
+      const d = Object.getOwnPropertyDescriptor(C.prototype, a);
+      if (d && d.set) Object.defineProperty(C.prototype, a, { ...d, set(v) { d.set.call(this, resolve(String(v)) || v); } });
+    }
+    const sa = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (n, v) { return sa.call(this, n, (n === 'src' || n === 'href') ? (resolve(String(v)) || v) : v); };
+    if (window.Worker) { const W = window.Worker; window.Worker = function (u, o) { return new W(resolve(String(u)) || u, o); }; }
+    const css = (t, from) => t.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => { const b = resolve(u, from); return b ? 'url("' + b + '")' : m; });
+    const doc = new DOMParser().parseFromString(text.get(entry) || '', 'text/html');
+    for (const s of doc.querySelectorAll('script')) {
+      const src = s.getAttribute('src');
+      s.setAttribute('nonce', nonce);
+      if (src) {
+        s.removeAttribute('src');
+        if (/\/sdk\/v1\/platform-sdk\.js$/.test(src)) s.textContent = sdk;
+        else { const p = norm(src); s.textContent = p !== null && text.has(p) ? text.get(p) + '\n//# sourceURL=' + p : 'console.error("[Lantern] missing file: " + ' + JSON.stringify(src) + ')'; }
+      }
+      // inline script text must not close the <script> element when re-parsed
+      s.textContent = s.textContent.replace(/<\/(script)/gi, '<\\/$1');
+    }
+    for (const l of doc.querySelectorAll('link[rel~="stylesheet"][href]')) {
+      const p = norm(l.getAttribute('href'));
+      const st = doc.createElement('style');
+      st.textContent = p !== null && text.has(p) ? css(text.get(p), dirOf(p)) : '';
+      l.replaceWith(st);
+    }
+    for (const st of doc.querySelectorAll('style')) st.textContent = css(st.textContent, base);
+    for (const el of doc.querySelectorAll('[src]:not(script)')) { const b = resolve(el.getAttribute('src')); if (b) el.setAttribute('src', b); }
+    for (const el of doc.querySelectorAll('[style]')) el.setAttribute('style', css(el.getAttribute('style'), base));
+    document.open();
+    document.write('<!doctype html>' + doc.documentElement.outerHTML);
+    document.close();
+  }
+})();`;
+
+const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const pageNonce = () => document.querySelector('script[nonce]')?.nonce || '';
+let sdkSource = null;
+async function loadSdk() {
+  if (!sdkSource) sdkSource = await (await fetch('/sdk/v1/platform-sdk.js')).text();
+  return sdkSource;
+}
+
 class RpcError extends Error {
   constructor(code, message) { super(message); this.code = code; }
 }
@@ -54,7 +137,14 @@ export class GameRuntime {
     f.setAttribute('allow', 'gamepad; autoplay; fullscreen');
     f.setAttribute('referrerpolicy', 'no-referrer');
     f.addEventListener('load', () => this.cb.onLoaded?.());
-    f.src = this.launch.build.url;
+    if (this.launch.build.local) {
+      const nonce = pageNonce();
+      if (!nonce) throw new Error('Local builds need the platform page nonce');
+      this.nonce = nonce;
+      f.srcdoc = `<!doctype html><meta charset="utf-8"><script nonce="${escAttr(nonce)}">${VFS_BOOTSTRAP.replace(/<\/script/gi, '<\\/script')}</script>`;
+    } else {
+      f.src = this.launch.build.url;
+    }
     this.frame = f;
     this.container.appendChild(f);
     this.clock = setInterval(() => {
@@ -74,6 +164,15 @@ export class GameRuntime {
   onWindowMessage(e) {
     if (!this.frame || e.source !== this.frame.contentWindow) return; // only our frame
     const d = e.data;
+    if (d && d.type === 'lantern:vfs-ready' && this.launch.build.local && !this.vfsSent) {
+      this.vfsSent = true;
+      const { files, entry } = this.launch.build;
+      loadSdk().then((sdk) => {
+        const copies = files.map((x) => ({ path: x.path, type: x.type, buf: x.buf.slice(0) }));
+        this.frame?.contentWindow.postMessage({ type: 'lantern:vfs', files: copies, entry, sdk, nonce: this.nonce }, '*', copies.map((x) => x.buf));
+      });
+      return;
+    }
     if (!d || d.type !== 'lantern:hello') return;
     if (d.protocol !== 1) { console.warn('[runtime] unsupported SDK protocol', d.protocol); return; }
     this.port?.close();

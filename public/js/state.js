@@ -1,10 +1,12 @@
 // Client-side view state: catalog cache + the signed-in user's entitlements.
-import { api } from './api.js';
+import { api, onConnectivity, isOffline } from './api.js';
 
 const listeners = new Set();
 export const state = {
   user: null,
   creator: { admin: false, passwordRequired: true, enabled: false },
+  features: { google: false, stripe: false, currency: 'usd', gamesOrigin: null },
+  offline: false,
   owned: new Set(),
   wishlist: new Set(),
   games: [],
@@ -15,10 +17,14 @@ export const state = {
 
 export const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 const emit = () => listeners.forEach((fn) => fn(state));
+export const notify = emit;
+state.offline = isOffline();
+onConnectivity((v) => { state.offline = v; emit(); });
 
 export function applyUserState(s) {
   state.user = s.user;
   if (s.creator) state.creator = s.creator;
+  if (s.features) state.features = s.features;
   state.owned = new Set(s.owned);
   state.wishlist = new Set(s.wishlist);
   emit();

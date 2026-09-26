@@ -6,7 +6,8 @@ import { openCheckout } from './checkout.js';
 
 const FEATURE_ICONS = { 'Cloud Saves': icons.cloud, Achievements: icons.trophy, 'Instant Play': icons.bolt, 'Offline Progress': icons.clock };
 
-export async function render(root, [id]) {
+export async function render(root, [id], query) {
+  if (query?.get('checkout') === 'cancelled') toast('Checkout cancelled — you were not charged');
   root.innerHTML = `${storeBar()}<div class="page"><div class="skeleton-hero"></div></div>`;
   bindStoreBar(root);
   const g = await api.game(id);

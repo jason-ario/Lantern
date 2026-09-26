@@ -28,3 +28,29 @@ export const ACCOUNT_MODE = env.ACCOUNT_MODE === 'single' ? 'single' : 'guest';
 
 // Behind a hosting proxy (Render, Fly, nginx) trust X-Forwarded-Proto / -For.
 export const TRUST_PROXY = env.TRUST_PROXY ? env.TRUST_PROXY === '1' : IS_PROD;
+
+// Public URL of the platform (e.g. https://lantern.onrender.com). Used for OAuth /
+// Stripe redirect URLs and as the only allowed parent of game frames. Optional
+// locally (derived from the request).
+const trimSlash = (s) => (s ? s.replace(/\/+$/, '') : '');
+export const PUBLIC_URL = trimSlash(env.PUBLIC_URL ?? '');
+
+// Serve untrusted game packages from a different site, e.g. https://play.lanterncdn.net
+// (point that domain at this same server). When unset, games are served from the
+// platform origin inside an opaque-origin sandbox.
+export const GAMES_ORIGIN = trimSlash(env.GAMES_ORIGIN ?? '');
+
+// Package signing (ECDSA P-256). Provide a PEM private key, or one is generated
+// and kept at DATA_DIR/keys/package-signing.pem.
+export const PACKAGE_SIGNING_KEY = env.PACKAGE_SIGNING_KEY ?? '';
+
+// Accounts: Google sign-in is enabled when both are set.
+export const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID ?? '';
+export const GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET ?? '';
+
+// Payments: Stripe Checkout is enabled when STRIPE_SECRET_KEY is set (use a test
+// key, sk_test_…, while trying it). Otherwise the fake "Lantern Wallet" is used.
+export const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY ?? '';
+export const STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET ?? '';
+export const STRIPE_API_BASE = trimSlash(env.STRIPE_API_BASE ?? 'https://api.stripe.com');
+export const CURRENCY = (env.CURRENCY ?? 'usd').toLowerCase();

@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 
 export const TABLES = [
   'users', 'authSessions', 'developers', 'games', 'gameVersions', 'achievements',
-  'ownerships', 'wishlists', 'saves', 'userAchievements', 'playSessions',
+  'ownerships', 'wishlists', 'saves', 'userAchievements', 'playSessions', 'orders',
 ];
 
 let file = null;

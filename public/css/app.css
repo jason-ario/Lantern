@@ -650,3 +650,86 @@ body.in-game .topnav, body.in-game #view, body.in-game .mobile-tabs { visibility
   .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ==========================================================================
+   Accounts, payments, offline, updates
+   ========================================================================== */
+.nav-signin { margin-right: 4px; }
+.offline-banner { position: sticky; top: var(--nav-h); z-index: 45; padding: 8px 24px; background: #3a2a0c; color: var(--amber-2); border-bottom: 1px solid #6b4d15; font-size: 13px; }
+.offline-banner b { color: #fff; margin-right: 6px; }
+body.is-offline .btn-buy:not(.rt-btn), body.is-offline [data-buy] { opacity: .5; pointer-events: none; }
+
+.auth { padding: 20px 22px; width: min(440px, 100%); }
+.auth-reason { margin: -6px 0 14px; color: var(--amber-2); font-size: 13px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--bg-2); padding: 3px; margin-bottom: 14px; }
+.auth-tabs button { border: 0; background: none; padding: 8px; font-weight: 600; color: var(--text-3); border-radius: 2px; }
+.auth-tabs button.on { background: var(--panel-3); color: var(--text); }
+.auth-google { width: 100%; height: 40px; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; margin: 12px 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+.auth-form { display: flex; flex-direction: column; gap: 10px; }
+.auth-form input { width: 100%; }
+.auth-form .btn { width: 100%; margin-top: 4px; }
+.auth-note { margin: 0; min-height: 16px; }
+
+.guest-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 20px 0 0; padding: 14px 16px; background: linear-gradient(90deg, #2a2010, var(--panel)); border: 1px solid #6b5230; }
+.guest-cta > div:first-child { display: flex; flex-direction: column; gap: 2px; max-width: 70ch; }
+.guest-cta-actions { display: flex; gap: 8px; }
+.acct-kv { margin-bottom: 12px; }
+.acct-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.orders td { vertical-align: top; }
+.orders a:hover { color: var(--amber-2); }
+
+.checkout-done { display: grid; place-items: center; padding-top: 60px; }
+.cd-panel { width: min(520px, 100%); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 0 24px; overflow: hidden; }
+.cd-panel h2 { font: 600 26px var(--display); }
+.cd-panel .spinner { margin-top: 30px; color: var(--amber); }
+.cd-art { align-self: stretch; aspect-ratio: 460/170; background-size: cover; background-position: center; display: flex; align-items: flex-end; padding: 16px; container-type: inline-size; }
+
+.rt-src { display: inline-flex; gap: 6px; }
+.rt-local, .rt-stream, .rt-offline { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 2px; }
+.rt-local { background: #45c46e1c; color: var(--green-2); }
+.rt-local svg { width: 12px; height: 12px; }
+.rt-stream { background: #6fb7ff1a; color: var(--blue); }
+.rt-offline { background: #ffb54722; color: var(--amber-2); }
+
+.lib-card { position: relative; }
+.lib-badge { position: absolute; left: 8px; top: 8px; z-index: 3; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 2px; display: inline-flex; align-items: center; }
+.lib-badge.upd { background: var(--amber); color: var(--amber-ink); }
+.lib-badge.off { background: #07120bdd; color: var(--green-2); border: 1px solid #45c46e55; padding: 3px 5px; }
+.lib-badge svg { width: 12px; height: 12px; }
+.upd-strip { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; margin-bottom: 18px; background: linear-gradient(90deg, #2a2010, var(--panel)); border: 1px solid #6b5230; }
+.upd-strip > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.upd-strip svg { color: var(--amber); }
+.upd-strip .muted { font-size: 12px; }
+.inst-row { align-items: center; }
+.inst-row > div { flex: 1; min-width: 0; }
+.inst-row small svg { width: 11px; height: 11px; vertical-align: -1px; color: var(--green-2); }
+.inst-dot.warn { background: var(--amber); border-color: var(--amber); }
+.inst-dot.busy { border-color: var(--amber); border-right-color: transparent; animation: spin .7s linear infinite; }
+.inst-bar { height: 3px; background: var(--panel-3); margin-top: 6px; }
+.inst-bar div { height: 100%; width: 0; background: var(--amber); transition: width .15s; }
+.news { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.news:last-child { border: 0; }
+.news-h { display: flex; align-items: center; gap: 8px; }
+.news-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 2px 6px; background: #45c46e22; color: var(--green-2); border-radius: 2px; }
+.news p { margin: 6px 0 0; color: var(--text-2); font-size: 13px; white-space: pre-line; }
+
+.my-games { margin-bottom: 26px; }
+.mg-list { display: flex; flex-direction: column; gap: 6px; }
+.mg-row { display: grid; grid-template-columns: 150px 1fr auto; gap: 14px; align-items: center; padding: 8px; background: var(--panel); border: 1px solid var(--line); }
+.mg-art { aspect-ratio: 460/215; background-size: cover; background-position: center; }
+.mg-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mg-body b { font-size: 15px; }
+.mg-notes { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-actions { display: flex; gap: 6px; }
+.pub-new-h { margin-top: 6px; }
+.upd { padding: 20px 22px; }
+.upd .drop { margin-top: 8px; }
+@media (max-width: 900px) {
+  .mg-row { grid-template-columns: 100px 1fr; }
+  .mg-actions { grid-column: 1 / -1; }
+  .upd-strip { flex-direction: column; align-items: flex-start; }
+  .offline-banner { top: var(--nav-h); padding: 8px 16px; }
+  .nav-signin { height: 28px; }
+}

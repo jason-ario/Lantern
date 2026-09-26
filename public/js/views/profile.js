@@ -1,9 +1,13 @@
 import { api } from '../api.js';
 import { state, boot, applyUserState } from '../state.js';
-import { esc, avatar, hours, ago, date, icons, modal, toast } from '../ui.js';
+import { esc, avatar, hours, ago, date, icons, modal, toast, price, bytes } from '../ui.js';
 import { go } from '../nav.js';
+import { openAuth, signOut } from './auth.js';
+import * as packages from '../offline/packages.js';
 
-export async function render(root) {
+export async function render(root, _, query) {
+  if (query?.get('authError')) toast(esc(query.get('authError')), { kind: 'error' });
+  if (query?.get('welcome')) toast(`Signed in as <b>${esc(state.user?.displayName ?? '')}</b>`, { kind: 'ok' });
   const p = await api.profile();
   const s = p.stats;
   root.innerHTML = `<div class="profile">
@@ -13,9 +17,10 @@ export async function render(root) {
         ${avatar(p.user, 112)}
         <div class="pf-id">
           <h1><span id="pfName">${esc(p.user.displayName)}</span> <button class="link-btn" id="rename">Edit name</button></h1>
-          <div class="muted">${p.user.guest ? 'Guest account on this browser' : `@${esc(p.user.username)}`} · Member since ${date(p.user.memberSince)}</div>
+          <div class="muted">${p.user.guest ? 'Guest account on this browser' : `@${esc(p.user.username)}${p.user.email ? ` · ${esc(p.user.email)}` : ''}`} · Member since ${date(p.user.memberSince)}</div>
         </div>
       </div>
+      ${p.user.guest ? `<div class="guest-cta"><div><b>Keep your library forever.</b><span class="muted">You're playing as a guest — your games and saves live in this browser's cookie. Create a free account and they follow you everywhere.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="ctaSignup">Create account</button><button class="btn btn-ghost" id="ctaLogin">Sign in</button></div></div>` : ''}
       <div class="pf-stats">
         <div><b>${s.owned}</b><span>Games owned</span></div>
         <div><b>${s.played}</b><span>Games played</span></div>
@@ -42,9 +47,24 @@ export async function render(root) {
           </section>
           <section class="panel">
             <h3>Account</h3>
-            <p class="muted small">${p.user.guest ? 'This is a guest account tied to this browser. Clearing cookies or switching browsers starts a new one.' : 'Demo account.'}</p>
-            <button class="btn btn-ghost" id="resetMine">Reset my progress</button>
-            ${state.creator.admin && state.creator.passwordRequired ? '<button class="btn btn-ghost" id="logoutCreator">Sign out of creator access</button>' : ''}
+            ${p.user.guest
+              ? '<p class="muted small">Guest account tied to this browser. Clearing cookies or switching browsers starts a new one.</p>'
+              : `<dl class="kv acct-kv"><dt>Email</dt><dd>${esc(p.user.email ?? '—')}</dd><dt>Sign-in</dt><dd>${[p.user.hasPassword ? 'Password' : '', p.user.google ? 'Google' : ''].filter(Boolean).join(' + ') || '—'}</dd></dl>`}
+            <div class="acct-actions">
+              ${p.user.guest ? '' : `${p.user.hasPassword ? '<button class="btn btn-ghost btn-sm" id="changePw">Change password</button>' : ''}<button class="btn btn-ghost btn-sm" id="signOut">Sign out</button>`}
+              <button class="btn btn-ghost btn-sm" id="resetMine">Reset my progress</button>
+              ${state.creator.admin && state.creator.passwordRequired ? '<button class="btn btn-ghost btn-sm" id="logoutCreator">Leave creator mode</button>' : ''}
+            </div>
+          </section>
+          <section class="panel">
+            <h3>Purchase history</h3>
+            ${(p.orders ?? []).length ? `<table class="saves orders"><tbody>${p.orders.map((o) => `<tr><td><a href="/app/${esc(o.gameId)}" data-link>${esc(o.title)}</a><div class="muted small mono">${esc(o.id)}</div></td><td>${date(o.paidAt ?? o.createdAt)}</td><td>${o.amountCents ? price(o.amountCents) : 'Free'}</td><td class="muted small">${{ stripe: 'Card (Stripe)', mock: 'Demo wallet', free: 'Free' }[o.provider] ?? esc(o.provider)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small">No purchases yet.</p>'}
+          </section>
+          <section class="panel">
+            <h3>Offline &amp; downloads</h3>
+            <p class="muted small" id="dlUsage">…</p>
+            <label class="f check"><input type="checkbox" id="autoDl" ${localStorage.getItem('lantern.autoDownload') !== '0' ? 'checked' : ''}><span>Download games after purchase so they play offline</span></label>
+            <button class="btn btn-ghost btn-sm" id="clearDl">Remove all downloads</button>
           </section>
           ${state.creator.admin ? `<section class="panel">
             <h3>Site admin</h3>
@@ -62,6 +82,22 @@ export async function render(root) {
       el.querySelector('[data-ok]').onclick = async () => { try { await action(); close(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } };
     },
   });
+  packages.usage().then((u) => { const el = root.querySelector('#dlUsage'); if (el) el.textContent = u.games ? `${u.games} game${u.games === 1 ? '' : 's'} downloaded on this device · ${bytes(u.bytes)}. Each build is signature-checked before it runs.` : 'No games downloaded on this device yet.'; });
+  root.querySelector('#autoDl').onchange = (e) => { try { localStorage.setItem('lantern.autoDownload', e.target.checked ? '1' : '0'); } catch { /* ignore */ } };
+  root.querySelector('#clearDl').onclick = async () => { await packages.clearAll(); toast('Removed all downloaded games from this device'); go('/profile'); };
+  root.querySelector('#ctaSignup')?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => go('/profile') }));
+  root.querySelector('#ctaLogin')?.addEventListener('click', () => openAuth({ mode: 'login', onDone: () => go('/profile') }));
+  root.querySelector('#signOut')?.addEventListener('click', () => signOut());
+  root.querySelector('#changePw')?.addEventListener('click', () => modal(`<form class="confirm"><h3>Change password</h3>
+    <label class="f"><span>Current password</span><input type="password" name="current" autocomplete="current-password" required></label>
+    <label class="f" style="margin-top:10px"><span>New password</span><input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+    <p class="muted small">Other devices signed in to this account will be signed out.</p>
+    <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy">Change password</button></div></form>`, {
+    onMount(el, close) {
+      el.querySelector('[data-close]').onclick = close;
+      el.querySelector('form').onsubmit = async (e) => { e.preventDefault(); const f = e.target; try { applyUserState(await api.auth.changePassword(f.current.value, f.password.value)); close(); toast('Password changed', { kind: 'ok' }); } catch (err) { toast(esc(err.message), { kind: 'error' }); } };
+    },
+  }));
   root.querySelector('#resetMine').onclick = () => confirmBox('Reset your progress?', 'Your library, saves, playtime, achievements and wishlist on this account are deleted.', 'Reset my progress', async () => {
     applyUserState(await api.account.resetProgress()); toast('Your progress was reset'); go('/store');
   });

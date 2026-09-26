@@ -5,6 +5,7 @@ import * as db from './db.js';
 import { hashDir, packageDir, readManifest } from './packages.js';
 import { developers, games, placeholderAchievements } from '../catalog/games.js';
 import { ACCOUNT_MODE } from './config.js';
+import { signBuild, currentKeyId } from './signing.js';
 
 export const DEFAULT_USER_ID = 'usr_jason';
 const PLACEHOLDER = { dir: '_placeholder', version: '1.0.0' };
@@ -24,8 +25,10 @@ function mediaFor(id) {
 export function createVersion({ gameId, pkgDir, pkgVersion, placeholder = false, notes, releasedAt }) {
   const manifest = readManifest(pkgDir, pkgVersion);
   const { files, sizeBytes, buildHash } = hashDir(packageDir(pkgDir, pkgVersion));
+  const version = placeholder ? '0.0.1-placeholder' : manifest.version;
+  const { signature } = signBuild({ gameId, version, entry: manifest.entry, buildHash, files });
   return db.insert('gameVersions', {
-    id: db.id('ver'), gameId, version: placeholder ? '0.0.1-placeholder' : manifest.version,
+    id: db.id('ver'), gameId, version, signature, signKeyId: currentKeyId(),
     packagePath: `${pkgDir}/${pkgVersion}`, entry: manifest.entry, sdk: String(manifest.sdk),
     runtime: manifest.runtime ?? { min: '1.0', features: [] }, input: manifest.input ?? [],
     files, sizeBytes, buildHash, placeholder, notes: notes ?? '', releasedAt: releasedAt ?? db.now(),

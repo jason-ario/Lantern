@@ -16,7 +16,7 @@ const save = (extra) => api('PUT', '/api/games/nightpaw/saves/save', { value: { 
 async function launch() {
   await p.goto(`${BASE}/play/nightpaw`);
   await p.waitForSelector('#rtSplash.gone', { state: 'attached' });
-  f = p.frames().find((x) => x.url().includes('/games/nightpaw/'));
+  f = p.frames().find((x) => x !== p.mainFrame() && (x.url().includes('/games/') || x.url() === 'about:srcdoc'));
   await f.waitForFunction(() => window.__nightpaw?.state().mode === 'title');
   await p.click('.runtime-frame', { position: { x: 900, y: 120 } });
   await p.keyboard.down('Enter'); await wait(60); await p.keyboard.up('Enter');

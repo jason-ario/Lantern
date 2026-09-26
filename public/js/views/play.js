@@ -1,11 +1,14 @@
 // Game view: platform chrome around the sandboxed runtime.
-import { api } from '../api.js';
+import { api, isNetworkError } from '../api.js';
+import * as packages from '../offline/packages.js';
+import { services, localLaunch, flush } from '../offline/sync.js';
 import { state, applyUserState } from '../state.js';
 import { GameRuntime } from '../runtime/host.js';
 import { esc, logo, bytes, icons, toast, hours, price, $ } from '../ui.js';
 import { go, previousPath } from '../nav.js';
 import { openCheckout } from './checkout.js';
 
+export const autoDownload = () => { try { return localStorage.getItem('lantern.autoDownload') !== '0'; } catch { return true; } };
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export async function render(root, [id], query) {
@@ -24,7 +27,7 @@ export async function render(root, [id], query) {
       <button class="rt-btn rt-quit" id="rtQuit" title="Save and quit">${icons.close}<span>Quit</span></button>
       <div class="rt-title">
         <span class="rt-brand">LANTERN</span><span class="rt-sep"></span>
-        <b>${esc(g.title)}</b><span class="rt-ver" id="rtVer"></span>
+        <b>${esc(g.title)}</b><span class="rt-ver" id="rtVer"></span><span class="rt-src" id="rtSrc"></span>
         ${mode === 'demo' ? '<span class="rt-demo" id="rtDemo">DEMO</span>' : ''}
       </div>
       <div class="rt-status">
@@ -52,9 +55,42 @@ export async function render(root, [id], query) {
   const splashShownAt = performance.now();
   const setSave = (html, cls = '') => { const el = $('#rtSave', root); el.className = `rt-save ${cls}`; el.innerHTML = `${icons.cloud}<span>${html}</span>`; };
 
+  const note = (t) => { const el = $('#rtNote', root); if (el) el.textContent = t; };
+  const playerKey = `lantern.player.v1:${state.user?.id}:${id}`;
+
+  // 1) Installed for offline play? Bring it up to date (delta) and load the verified local copy.
+  let local = null;
+  if (owned && packages.installed(id)) {
+    if (packages.status(g) === 'update' && !state.offline) {
+      const from = packages.installed(id).version;
+      note(`Updating ${from} → ${g.version.version}…`);
+      try {
+        const r = await packages.install(id, { onProgress: (p) => note(`Updating to v${g.version.version} · ${bytes(p.done)} of ${bytes(p.total)}`) });
+        toast(`${icons.box} <b>${esc(g.title)}</b> updated to v${esc(r.version)} · downloaded ${bytes(r.downloadedBytes)} (${r.reusedFiles} files unchanged)`, { kind: 'ok' });
+      } catch (err) { console.warn('update failed, launching installed build', err); }
+    }
+    try { note('Verifying local build…'); local = await packages.loadFiles(id); } catch (err) { console.warn(err); toast(esc(err.message), { kind: 'error' }); }
+  }
+
+  // 2) Start a session (online), or a local session when offline with an installed build.
   let launch;
   try {
-    launch = await api.runtime.launch(id, mode);
+    try {
+      launch = await api.runtime.launch(id, mode);
+      try { localStorage.setItem(playerKey, JSON.stringify(launch.player)); } catch { /* ignore */ }
+      flush();
+    } catch (err) {
+      if (!isNetworkError(err)) throw err;
+      if (!local) throw new Error(`You're offline and ${g.title} isn't downloaded for offline play yet.`);
+      let player = null;
+      try { player = JSON.parse(localStorage.getItem(playerKey) ?? 'null'); } catch { /* ignore */ }
+      launch = localLaunch(g, player ?? { id: 'offline', displayName: state.user?.displayName ?? 'Player' }, {});
+    }
+    if (local) {
+      launch.build = { ...launch.build, local: true, files: local.files, entry: local.entry, version: local.version, buildHash: local.buildHash, sizeBytes: local.sizeBytes, fileCount: local.files.length };
+    } else if (owned && packages.supported() && autoDownload()) {
+      packages.install(id).catch(() => {}); // cache in the background for next time / offline
+    }
   } catch (err) {
     $('#rtNote', root).textContent = err.message;
     toast(esc(err.message), { kind: 'error' });
@@ -62,6 +98,9 @@ export async function render(root, [id], query) {
     return null;
   }
   $('#rtVer', root).textContent = `v${launch.build.version}`;
+  $('#rtSrc', root).innerHTML = launch.build.local
+    ? `<span class="rt-local" title="Running the signed, verified copy stored on this device">${icons.shield} Local · verified</span>${launch.session.offline ? '<span class="rt-offline">Offline</span>' : ''}`
+    : '<span class="rt-stream" title="Streaming from Lantern">Streaming</span>';
   $('#rtNote', root).textContent = `Build ${launch.build.buildHash.slice(0, 8)} · ${bytes(launch.build.sizeBytes)} · ${launch.build.fileCount} files`;
   if (launch.session.demoSeconds) demoLeft = launch.session.demoSeconds;
 
@@ -90,7 +129,7 @@ export async function render(root, [id], query) {
       <p>Everything you've done so far is saved. Buy ${esc(g.title)} and pick up exactly where you left off.</p>
       <div class="rde-actions"><button class="btn btn-buy btn-lg" data-buy>Buy · ${price(g.priceCents)}</button><button class="btn btn-ghost" data-quit>Save &amp; quit</button></div>
     </div>`);
-    v.querySelector('[data-buy]').onclick = () => openCheckout(g, { inGame: true, onPurchased: unlockFull });
+    v.querySelector('[data-buy]').onclick = () => openCheckout(g, { inGame: true, onPurchased: unlockFull, onBeforeRedirect: () => quit({ navigate: false }) });
     v.querySelector('[data-quit]').onclick = () => quit();
   };
   const unlockFull = () => {
@@ -102,7 +141,7 @@ export async function render(root, [id], query) {
   };
 
   runtime = new GameRuntime({
-    services: api,
+    services,
     container: $('#rtStage', root),
     launch,
     callbacks: {
@@ -140,7 +179,7 @@ export async function render(root, [id], query) {
   runtime.start();
 
   $('#rtQuit', root).onclick = () => quit();
-  $('#rtBuy', root)?.addEventListener('click', () => { runtime.pause(); openCheckout(g, { inGame: true, onPurchased: unlockFull }); });
+  $('#rtBuy', root)?.addEventListener('click', () => { runtime.pause(); openCheckout(g, { inGame: true, onPurchased: unlockFull, onBeforeRedirect: () => quit({ navigate: false }) }); });
   $('#rtFull', root).onclick = () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else $('#rt', root).requestFullscreen?.().then(() => runtime.focus()).catch(() => {});

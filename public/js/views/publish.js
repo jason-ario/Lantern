@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { applyUserState, loadCatalog, state } from '../state.js';
 import { go } from '../nav.js';
-import { esc, price, bytes, icons, toast, $, $$ } from '../ui.js';
+import { esc, price, bytes, icons, toast, modal, date, $, $$ } from '../ui.js';
 
 const PRICES = [0, 299, 499, 799, 999, 1499, 1999];
 const SUGGESTED_TAGS = ['Arcade', 'Casual', 'Puzzle', 'Action', 'Platformer', 'Strategy', 'Cozy', 'Roguelike', 'Narrative', 'Minimalist', 'Score Attack', 'Relaxing'];
@@ -50,6 +50,8 @@ export async function render(root) {
       <p class="muted">Any HTML/JS/WebGL game becomes a premium, ownable, instantly playable title. Package it, describe it, publish — the store page is live immediately.</p></div>
       <ol class="pub-steps"><li class="on" data-s="1"><b>1</b>Build<small>Web game + Lantern SDK</small></li><li data-s="2"><b>2</b>Package<small>.zip with manifest.json</small></li><li data-s="3"><b>3</b>Describe<small>Store metadata</small></li><li data-s="4"><b>4</b>Publish<small>Live instantly</small></li></ol>
     </div>
+    <section class="my-games" id="myGames"></section>
+    <div class="sec-h pub-new-h"><h2>Publish a new game</h2></div>
     <div class="pub-grid">
       <form class="pub-form" id="pubForm" novalidate>
         <section class="panel">
@@ -245,5 +247,86 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
     }
   });
   updatePreview();
+  renderMyGames($('#myGames', root));
   return null;
+}
+
+// ---------------- Your games: publish updates ----------------
+const bump = (v) => { const [a, b, c] = v.split('.').map((n) => parseInt(n, 10) || 0); return `${a}.${b}.${c + 1}`; };
+async function renderMyGames(host) {
+  let all;
+  try { all = await api.creator.games(); } catch { host.innerHTML = ''; return; }
+  const mine = all.filter((g) => g.mine);
+  const catalog = all.filter((g) => !g.mine && !g.placeholder); // local dev: seeded games with real builds
+  const showAll = host.dataset.all === '1';
+  const games = showAll ? [...mine, ...catalog] : mine;
+  if (!games.length && !catalog.length) { host.innerHTML = ''; return; }
+  host.innerHTML = `<div class="sec-h"><h2>Your games</h2><span class="sec-note">Ship an update and every player gets it — installed copies download only the files that changed.</span>${catalog.length ? `<a href="#" id="mgAll">${showAll ? 'Only my games' : `Also show ${catalog.length} catalog games (local admin)`}</a>` : ''}</div>
+    ${games.length ? '' : '<p class="muted small">You haven\'t published a game yet — use the form below.</p>'}
+    <div class="mg-list">${games.map((g) => `<div class="mg-row">
+      <span class="mg-art" style="background-image:url('${esc(g.media.header)}')"></span>
+      <div class="mg-body"><b>${esc(g.title)}</b><span class="muted small">v${esc(g.currentVersion)} · ${g.owners} player${g.owners === 1 ? '' : 's'} · ${g.versions.length} version${g.versions.length === 1 ? '' : 's'}</span>
+        <span class="mg-notes muted small">${esc((g.versions[0]?.notes ?? '').slice(0, 120))}</span></div>
+      <div class="mg-actions"><a class="btn btn-ghost btn-sm" href="/app/${esc(g.id)}" data-link>Store page</a><button class="btn btn-buy btn-sm" data-update="${esc(g.id)}">Publish update</button></div>
+    </div>`).join('')}</div>`;
+  host.onclick = (e) => {
+    if (e.target.id === 'mgAll') { e.preventDefault(); host.dataset.all = showAll ? '0' : '1'; renderMyGames(host); return; }
+    const b = e.target.closest('[data-update]');
+    if (b) openUpdate(all.find((g) => g.id === b.dataset.update), () => renderMyGames(host));
+  };
+}
+
+function openUpdate(g, onDone) {
+  const cur = g.versions[0]?.placeholder ? '1.0.0' : g.currentVersion;
+  const upd = { pkg: null, report: null };
+  const sample = /skylark/i.test(g.title) ? '<button type="button" class="btn btn-ghost btn-sm" id="updSample">Use sample update — Skylark 1.1.0</button>' : '';
+  modal(`<form class="upd" id="updForm" novalidate>
+    <div class="co-head"><h3>Update ${esc(g.title)}</h3><button type="button" class="icon-btn" data-close aria-label="Close">${icons.close}</button></div>
+    <p class="muted small">Currently live: v${esc(g.currentVersion)}. Versions are immutable — the new build gets its own signed, cache-forever URL.</p>
+    <label class="drop" id="updDrop"><input type="file" accept=".zip,.html,.htm" hidden id="updFile"><div class="drop-ico">${icons.box}</div><div><b id="updDropT">Drop the new build (.zip)</b><small id="updDropS">Same format as a new game.</small></div></label>
+    ${sample ? `<div class="pub-sample">${sample}</div>` : ''}
+    <div id="updReport"></div>
+    <div class="fgrid" style="margin-top:12px">
+      <label class="f"><span>New version</span><input name="version" value="${esc(bump(cur))}" pattern="\\d+\\.\\d+\\.\\d+"></label>
+      <div></div>
+      <label class="f span2"><span>Patch notes <small>shown to players in their library</small></span><textarea name="notes" rows="4" placeholder="What changed in this version?"></textarea></label>
+    </div>
+    <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy btn-lg" id="updGo" disabled>Publish update</button></div>
+  </form>`, {
+    onMount(el, close) {
+      el.querySelectorAll('[data-close]').forEach((b) => { b.onclick = close; });
+      const f = el.querySelector('#updForm');
+      const use = async (name, buf) => {
+        upd.pkg = { filename: name, dataBase64: b64(buf) };
+        el.querySelector('#updDropT').textContent = name;
+        try { upd.report = await api.publishing.inspect(name, upd.pkg.dataBase64); } catch (err) { upd.report = { ok: false, errors: [err.message], warnings: [] }; }
+        const r = upd.report;
+        el.querySelector('#updDropS').textContent = r.ok ? `${r.fileCount} files · ${bytes(r.sizeBytes)} · manifest v${r.manifest?.version ?? '?'}` : 'Package has problems';
+        el.querySelector('#updReport').innerHTML = r.ok ? '' : `<div class="report bad"><ul>${r.errors.map((x) => `<li class="err">${esc(x)}</li>`).join('')}</ul></div>`;
+        if (r.ok && r.manifest?.version && r.manifest.version !== cur) f.elements.version.value = r.manifest.version;
+        el.querySelector('#updGo').disabled = !r.ok;
+      };
+      el.querySelector('#updFile').onchange = async (e) => { const file = e.target.files[0]; if (file) use(file.name, await readAs(file, 'buffer')); };
+      el.querySelector('#updSample')?.addEventListener('click', async () => {
+        f.elements.notes.value = 'The dusk update: Skylark now flies at sunset, and there is a new achievement — High Flyer — for flying 1,000 metres.';
+        use('skylark-1.1.0.zip', await (await fetch('/creator/skylark-1.1.0.zip')).arrayBuffer());
+      });
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = el.querySelector('#updGo'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Publishing…';
+        try {
+          const r = await api.creator.publishVersion(g.id, { version: f.elements.version.value.trim(), releaseNotes: f.elements.notes.value, package: upd.pkg });
+          await loadCatalog();
+          el.innerHTML = `<div class="co co-done"><div class="co-check">✓</div><h3>${esc(g.title)} v${esc(r.version)} is live</h3>
+            <p class="muted">${r.previousVersion ? `Updated from v${esc(r.previousVersion)}. ` : ''}${r.delta.changedFiles} of ${r.delta.totalFiles} files changed — players with a downloaded copy fetch just <b>${bytes(r.delta.downloadBytes)}</b> instead of ${bytes(r.delta.totalBytes)}.</p>
+            <div class="co-actions center"><a class="btn btn-ghost" href="/app/${esc(g.id)}" data-link data-close>View store page</a><button class="btn btn-buy" data-close>Done</button></div></div>`;
+          el.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+          onDone?.();
+        } catch (err) {
+          btn.disabled = false; btn.textContent = 'Publish update';
+          toast(esc(err.message), { kind: 'error', timeout: 6000 });
+        }
+      };
+    },
+  });
 }

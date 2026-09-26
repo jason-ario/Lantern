@@ -9,6 +9,9 @@ import * as wishlist from './views/wishlist.js';
 import * as profile from './views/profile.js';
 import * as publish from './views/publish.js';
 import * as play from './views/play.js';
+import * as checkoutComplete from './views/checkout-complete.js';
+import { openAuth } from './views/auth.js';
+import { flush } from './offline/sync.js';
 import { setNavigator, setPrevious } from './nav.js';
 
 const routes = [
@@ -22,6 +25,7 @@ const routes = [
   [/^\/profile\/?$/, profile, 'profile'],
   [/^\/publish\/?$/, publish, 'publish'],
   [/^\/play\/([^/]+)\/?$/, play, null],
+  [/^\/checkout\/complete\/?$/, checkoutComplete, 'store'],
 ];
 
 const view = document.getElementById('view');
@@ -79,6 +83,21 @@ document.addEventListener('click', (e) => {
 function renderChrome() {
   const me = document.getElementById('meChip');
   if (state.user) me.innerHTML = `${avatar(state.user, 26)}<span>${esc(state.user.displayName)}</span>`;
+  let signIn = document.getElementById('signInBtn');
+  if (state.user?.guest && !signIn) {
+    signIn = document.createElement('button');
+    signIn.id = 'signInBtn'; signIn.className = 'btn btn-ghost btn-sm nav-signin'; signIn.textContent = 'Sign in';
+    signIn.onclick = () => openAuth({ mode: 'login' });
+    me.before(signIn);
+  } else if (!state.user?.guest && signIn) signIn.remove();
+  let banner = document.getElementById('offlineBanner');
+  if (state.offline && !banner) {
+    banner = document.createElement('div');
+    banner.id = 'offlineBanner'; banner.className = 'offline-banner';
+    banner.innerHTML = "<b>You're offline.</b> Games you've downloaded still play — saves sync when you reconnect.";
+    document.querySelector('.topnav').after(banner);
+  } else if (!state.offline && banner) banner.remove();
+  document.body.classList.toggle('is-offline', !!state.offline);
   const wc = document.getElementById('wishCount');
   wc.textContent = state.wishlist.size ? state.wishlist.size : '';
 }
@@ -88,9 +107,12 @@ onChange(renderChrome);
   try {
     await boot();
   } catch (err) {
+    if (err instanceof TypeError) { view.innerHTML = `<div class="page empty-state"><h2>You're offline</h2><p>Open Lantern once while online and your library becomes available offline.</p></div>`; return; }
     view.innerHTML = `<div class="page empty-state"><h2>Can't reach Lantern services</h2><p>${esc(err.message)}</p></div>`;
     return;
   }
   renderChrome();
   await render();
+  flush(); // upload anything queued while offline
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();
