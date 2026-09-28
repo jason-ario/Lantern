@@ -1,4 +1,4 @@
-// TIDEWATER TRADING CO. — incremental harbor game for the Lantern runtime.
+// TIDEWATER TRADING CO. — incremental harbor game for the Vibe-Games runtime.
 // State is saved through Platform.storage ("harbor" key). The game has no idea
 // whether that ends up in a browser, a desktop cache or a cloud-save service.
 (() => {
@@ -59,7 +59,7 @@
     try {
       await Platform.storage.save('harbor', S);
       dirty = false; lastSaveAt = new Date();
-      setSaveState(`✓ Saved to Lantern · ${lastSaveAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}${reason ? ` (${reason})` : ''}`);
+      setSaveState(`✓ Saved to Vibe-Games · ${lastSaveAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}${reason ? ` (${reason})` : ''}`);
     } catch (e) {
       setSaveState(`Save failed: ${e.message}`);
     } finally { saving = false; }
@@ -262,7 +262,7 @@
       } else if (away > 20) {
         modal(`Welcome back to ${S.harborName}`, `Everything is exactly where you left it — ${fmt(S.coins)} coins in the chest.`);
       }
-      setSaveState(`✓ Progress restored from Lantern (saved ${new Date(saved.savedAt).toLocaleString()})`);
+      setSaveState(`✓ Progress restored from Vibe-Games (saved ${new Date(saved.savedAt).toLocaleString()})`);
     } else {
       if (me?.displayName) S.harborName = `${me.displayName}'s Landing`;
       modal('A harbor of your own', `Your uncle left you a rowboat, a net and a quiet cove.${ctx.mode === 'demo' ? '<br><br><i>Demo: your progress carries over if you buy the game.</i>' : ''}<br><br>Haul the nets, buy skiffs, and build the busiest port on the coast.`);

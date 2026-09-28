@@ -1,20 +1,20 @@
-# Selling your game on Lantern
+# Selling your game on Vibe-Games
 
-The full, interactive version of this guide is on the Lantern site at **`/developers`**. It includes an earnings calculator and a launch checklist. This file is the same guide for people reading the repo.
+The full, interactive version of this guide is on the Vibe-Games site at **`/developers`**. It includes an earnings calculator and a launch checklist. This file is the same guide for people reading the repo.
 
-If it runs in a browser, it can be a premium game on Lantern. Players own it forever, can play it instantly or offline, and get cloud saves and achievements built in.
+You vibed it. Now sell it. If you built it with AI and it runs in a browser, it can be a premium game on Vibe-Games. Players own it forever, can play it instantly or offline, and get cloud saves and achievements built in.
 
 ---
 
 ## 1. Earning money
 
-- **You keep 90% of every sale.** Lantern keeps 10% to run the store, hosting, downloads and cloud saves.
+- **You keep 90% of every sale.** Vibe-Games keeps 10% to run the store, hosting, downloads and cloud saves.
 - **One-time purchase.** Choose a price tier from $2.99 to $19.99, or make the game free. There are no subscriptions, ads or per-play fees.
 - **Demos sell games.** The optional 5-minute demo lets anyone try the game first. Their progress carries into the full game when they buy.
 - **Updates are free to ship.** Owners get every update at no extra cost.
 - **Track sales** under **Publish → Your games**. Each game shows its sales and your share.
 
-> **Planned policy.** The 90/10 split is Lantern's planned creator policy. Your share is 90% of *net* revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to creators are not live yet. Sales are recorded per game from day one. Operators can change the split with the `CREATOR_SHARE` environment variable.
+> **Planned policy.** The 90/10 split is Vibe-Games' planned creator policy. Your share is 90% of *net* revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to creators are not live yet. Sales are recorded per game from day one. Operators can change the split with the `CREATOR_SHARE` environment variable.
 
 | Price | $2.99 | $4.99 | $7.99 | $9.99 | $14.99 | $19.99 |
 |---|---|---|---|---|---|---|
@@ -24,11 +24,13 @@ These amounts are before card fees. Card fees are usually a few percent plus a f
 
 ## 2. Quick start (about 10 minutes)
 
-1. **Download the starter kit** from `/creator/lantern-starter.zip`. The source is in [`samples/starter`](samples/starter). It's a small complete game, "Firefly Jar", with cloud saves, achievements and pause handling.
-2. **Run it locally.** Open a terminal in the unzipped folder, run `npx serve -l 8000` or `python -m http.server 8000`, then open `http://localhost:8000`. Outside Lantern, the included `lantern-dev.js` stands in for the SDK: saves go to localStorage and achievements are logged to the console.
-3. **Make it yours.** Edit `game.js`, or drop in your own game and keep the three `<script>` tags from `index.html`.
+1. **Download the starter kit** from `/creator/vibe-games-starter.zip`. The source is in [`samples/starter`](samples/starter). It's a small complete game, "Firefly Jar", with cloud saves, achievements and pause handling.
+2. **Run it locally.** Open a terminal in the unzipped folder, run `npx serve -l 8000` or `python -m http.server 8000`, then open `http://localhost:8000`. Outside Vibe-Games, the included `vibe-dev.js` stands in for the SDK: saves go to localStorage and achievements are logged to the console.
+3. **Vibe it into your game.** Open the folder in your AI tool (Claude Code, Cursor, Copilot, …), tell it to read `VIBE.md` first, then describe the game you want. Or drop in your own game and keep the three `<script>` tags from `index.html`.
+
+   `VIBE.md` is a short brief written for coding assistants: package format, SDK calls, what the sandbox blocks (network, ES modules, `eval`, `localStorage`) and the quality bar. It's also at `/creator/VIBE.md` and has a copy button on `/developers`.
 4. **Zip it.** Zip the folder contents. You can also run `node scripts/pack.mjs path/to/game` from this repo.
-5. **Publish.** Go to **Publish**, drop the zip, fill in the store page, then click **Publish to Lantern**.
+5. **Publish.** Go to **Publish**, drop the zip, fill in the store page and the vibe, then click **Ship it**.
 
 ## 3. Package format
 
@@ -69,11 +71,11 @@ Limits:
 
 ## 4. Platform SDK
 
-Load the SDK with this exact path. Lantern serves it, so don't bundle it into your zip.
+Load the SDK with this exact path. Vibe-Games serves it, so don't bundle it into your zip.
 
 ```html
 <script src="/sdk/v1/platform-sdk.js"></script>
-<script src="lantern-dev.js"></script>  <!-- optional: runs outside Lantern -->
+<script src="vibe-dev.js"></script>  <!-- optional: runs outside Vibe-Games -->
 <script src="game.js"></script>
 ```
 
@@ -102,7 +104,7 @@ Platform.game.onExit(() => Platform.storage.save('progress', save)); // up to ~1
 | `achievements.unlock(id)` | `{ id, newlyUnlocked, unlockedAt }` | Idempotent. The id must be in the manifest |
 | `achievements.list()` | `[{ id, name, description, unlockedAt }]` | |
 | `game.onExit / onPause / onResume(fn)` | – | Lifecycle hooks |
-| `game.exit()` | `true` | Asks Lantern to close the game |
+| `game.exit()` | `true` | Asks Vibe-Games to close the game |
 | `game.reportPlaytime()` | `{ sessionSeconds }` | Optional |
 
 Errors reject with a `code`:
@@ -149,13 +151,13 @@ If you use modules, bundle them into one classic script, for example `npx esbuil
 
 ## 7. Test before you ship
 
-1. Test locally with `lantern-dev.js`. It enforces the same limits as the real runtime.
+1. Test locally with `vibe-dev.js`. It enforces the same limits as the real runtime.
 2. Drop the zip on **Publish** to run the package check. Fix every error.
 3. After publishing, play from your library. Quit and relaunch to check that the save loads. Try it on a phone. Download it, turn off Wi-Fi and play again.
 
 ## 8. Publishing
 
-Publishing is invite-only during early access. Ask the Lantern team for the creator password.
+Publishing is invite-only during early access. Ask the Vibe-Games team for the creator password.
 
 On the Publish page, provide:
 - The zip
@@ -165,6 +167,7 @@ On the Publish page, provide:
 - Key art: one PNG, JPG or WebP image up to 8 MB, cropped for the capsule, header and banner, so keep the subject centred
 - Up to 6 screenshots, 16:9 at 1280×720 or larger
 - Whether to offer the demo
+- **The vibe:** the AI tools you built it with (at least one, up to five), and optionally the prompt that started it (up to 400 characters) and roughly how many hours it took. It shows on your store page under "How it was vibed", and players can browse and search by tool.
 
 The store page goes live instantly.
 
@@ -181,10 +184,10 @@ Go to **Publish → Your games → Publish update**, upload a higher version and
 
 Nobody hand-picks the store. Every shelf is built from how players actually play, and there's no review queue or fee to get in.
 
-1. **Discovery window.** Every new game goes on the **New on Lantern** shelf until it has had 200 players or 30 days pass. Games with the fewest players are shown first, so each one gets a fair first audience.
-2. **Lantern Score (0–100).** Built from five signals. Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.
+1. **Discovery window.** Every new game goes on the **Fresh off the prompt** shelf until it has had 200 players or 30 days pass. Games with the fewest players are shown first, so each one gets a fair first audience.
+2. **Vibe Score (0–100).** Built from five signals. Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.
 3. **Promotion.** After the window, games scoring **45+** go to the front page, Trending, Hidden gems and recommendations. The rest stay listed: searchable, buyable and with a store page. Scores update continuously, so a good update can get a game promoted later.
-4. **Launch health.** If most launches fail to connect to Lantern or throw uncaught errors, the game is taken off shelves until a fixed update is published.
+4. **Launch health.** If most launches fail to connect to Vibe-Games or throw uncaught errors, the game is taken off shelves until a fixed update is published.
 
 | Signal | Weight | What it measures |
 |---|---|---|

@@ -14,6 +14,7 @@ import * as checkoutComplete from './views/checkout-complete.js';
 import { openAuth } from './views/auth.js';
 import { flush } from './offline/sync.js';
 import { setNavigator, setPrevious } from './nav.js';
+import { migrateLegacyStorage } from './migrate.js';
 
 const routes = [
   [/^\/$/, () => navigate('/store', { replace: true })],
@@ -67,11 +68,11 @@ async function render() {
       cleanup = (await mod.render(isPlay ? document.getElementById('runtime-root') : view, m.slice(1).map(decodeURIComponent), query)) ?? null;
     } catch (err) {
       console.error(err);
-      view.innerHTML = `<div class="page empty-state"><h2>Something went wrong</h2><p>${esc(err.message)}</p><a class="btn" href="/store" data-link>Back to Store</a></div>`;
+      view.innerHTML = `<div class="page empty-state"><h2>That wasn't the vibe</h2><p>${esc(err.message)}</p><a class="btn" href="/store" data-link>Back to Store</a></div>`;
     }
     return;
   }
-  view.innerHTML = '<div class="page empty-state"><h2>Page not found</h2><a class="btn" href="/store" data-link>Back to Store</a></div>';
+  view.innerHTML = '<div class="page empty-state"><h2>404: this page was never prompted</h2><p>Nothing lives at this address. Maybe it&rsquo;s still being vibed.</p><a class="btn" href="/store" data-link>Back to Store</a></div>';
 }
 
 // Intercept in-app links.
@@ -96,7 +97,7 @@ function renderChrome() {
   if (state.offline && !banner) {
     banner = document.createElement('div');
     banner.id = 'offlineBanner'; banner.className = 'offline-banner';
-    banner.innerHTML = "<b>You're offline.</b> Games you've downloaded still play — saves sync when you reconnect.";
+    banner.innerHTML = "<b>You're offline.</b> Downloaded games still play, and saves sync when you reconnect.";
     document.querySelector('.topnav').after(banner);
   } else if (!state.offline && banner) banner.remove();
   document.body.classList.toggle('is-offline', !!state.offline);
@@ -106,11 +107,12 @@ function renderChrome() {
 onChange(renderChrome);
 
 (async () => {
+  await migrateLegacyStorage();
   try {
     await boot();
   } catch (err) {
-    if (err instanceof TypeError) { view.innerHTML = `<div class="page empty-state"><h2>You're offline</h2><p>Open Lantern once while online and your library becomes available offline.</p></div>`; return; }
-    view.innerHTML = `<div class="page empty-state"><h2>Can't reach Lantern services</h2><p>${esc(err.message)}</p></div>`;
+    if (err instanceof TypeError) { view.innerHTML = `<div class="page empty-state"><h2>You're offline</h2><p>Open Vibe-Games once while online and your library comes with you offline.</p></div>`; return; }
+    view.innerHTML = `<div class="page empty-state"><h2>Can't reach Vibe-Games right now</h2><p>${esc(err.message)}</p></div>`;
     return;
   }
   renderChrome();

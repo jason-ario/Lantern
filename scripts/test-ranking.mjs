@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lantern-rank-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-rank-'));
 process.env.DATA_DIR = tmp;
 process.env.PACKAGE_SIGNING_KEY = '';
 const { initSigning } = await import('../server/signing.js');

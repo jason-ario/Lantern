@@ -7,10 +7,10 @@
 //    running — so a corrupted or tampered package never executes.
 import { api } from '../api.js';
 
-const CACHE = 'lantern-packages-v1';
-const INDEX_KEY = 'lantern.installs.v1';
-const KEY_PIN = 'lantern.packageKey.v1';
-const fileUrl = (sha) => `/__lantern/blob/${sha}`;
+const CACHE = 'vibe-packages-v1';
+const INDEX_KEY = 'vibe.installs.v1';
+const KEY_PIN = 'vibe.packageKey.v1';
+const fileUrl = (sha) => `/__vibe/blob/${sha}`;
 
 const MIME = {
   html: 'text/html', htm: 'text/html', js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json',
@@ -52,7 +52,7 @@ async function platformKey(expectedKeyId) {
   try { pinned = JSON.parse(localStorage.getItem(KEY_PIN) ?? 'null'); } catch { /* ignore */ }
   if (!pinned || pinned.keyId !== expectedKeyId) {
     const k = await api.packageKey();
-    if (pinned && pinned.keyId !== k.keyId) throw new Error('Lantern\'s package signing key changed, so new builds are not trusted automatically. If you expected this, go to Profile → Remove all downloads, then download again.');
+    if (pinned && pinned.keyId !== k.keyId) throw new Error('The store\'s package signing key changed, so new builds are not trusted automatically. If you expected this, go to Profile → Remove all downloads, then download again.');
     pinned = k;
     try { localStorage.setItem(KEY_PIN, JSON.stringify(k)); } catch { /* ignore */ }
   }

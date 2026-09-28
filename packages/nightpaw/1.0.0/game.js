@@ -1,6 +1,6 @@
-// NIGHTPAW — a tiny metroidvania for the Lantern runtime.
+// NIGHTPAW — a tiny metroidvania for the Vibe-Games runtime.
 // A small black cat with a red scarf and a borrowed sword descends into the deep.
-// Persistence and achievements go exclusively through the Lantern Platform SDK.
+// Persistence and achievements go exclusively through the Vibe-Games Platform SDK.
 (() => {
   'use strict';
 

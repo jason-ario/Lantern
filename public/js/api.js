@@ -24,7 +24,7 @@ async function request(method, path, body, { keepalive = false } = {}) {
   try {
     res = await fetch(path, {
       method,
-      headers: { 'X-Lantern-Client': 'platform', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { 'X-Vibe-Client': 'platform', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: 'same-origin',
       keepalive,
@@ -33,7 +33,7 @@ async function request(method, path, body, { keepalive = false } = {}) {
     setOffline(true);
     throw new TypeError('You are offline');
   }
-  setOffline(res.headers.get('X-Lantern-Offline') === '1');
+  setOffline(res.headers.get('X-Vibe-Offline') === '1');
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
   return data;

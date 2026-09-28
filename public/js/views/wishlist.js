@@ -38,7 +38,7 @@ export async function render(root) {
             <div class="wr-meta"><span class="muted small">Added ${date(addedAt)}</span><button class="link-btn" data-remove="${esc(g.id)}">Remove</button></div>
           </div>
         </div>`;
-      }).join('')}</div>` : `<div class="empty-state"><h2>Your wishlist is empty</h2><p>Tap the heart on any store page to keep track of games you want.</p><a class="btn btn-buy" href="/store" data-link>Browse the Store</a></div>`}
+      }).join('')}</div>` : `<div class="empty-state"><h2>Nothing on the list yet</h2><p>Tap the heart on any game you're vibing with and it'll wait for you here.</p><a class="btn btn-buy" href="/store" data-link>Browse the Store</a></div>`}
     </div>`;
     const sel = $('#wSort', root);
     if (sel) { sel.value = sort; sel.onchange = () => { sort = sel.value; draw(); }; }

@@ -1,6 +1,6 @@
 // Feature tests: accounts, offline play, updates + delta downloads, package
 // signing/tamper detection, Stripe checkout (against a local fake Stripe), and
-// the separate games origin. Starts its own Lantern servers on spare ports.
+// the separate games origin. Starts its own Vibe-Games servers on spare ports.
 //   node scripts/test-features.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -12,9 +12,9 @@ import crypto from 'node:crypto';
 
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? '✓' : '✗'} ${name}${detail ? ` — ${detail}` : ''}`); };
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lantern-test-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-test-'));
 const servers = [];
-async function startLantern(port, env = {}) {
+async function startServer(port, env = {}) {
   const child = spawn(process.execPath, ['server/index.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: path.join(tmp, `data-${port}`), ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   servers.push(child);
   let log = '';
@@ -31,7 +31,7 @@ async function newPlayer(base) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const api = (m, p, d) => page.request.fetch(base + p, { method: m, headers: { 'X-Lantern-Client': 'platform', 'Content-Type': 'application/json' }, data: d, failOnStatusCode: false }).then(async (r) => ({ status: r.status(), body: await r.json().catch(() => null) }));
+  const api = (m, p, d) => page.request.fetch(base + p, { method: m, headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data: d, failOnStatusCode: false }).then(async (r) => ({ status: r.status(), body: await r.json().catch(() => null) }));
   return { ctx, page, api, errors };
 }
 const gameFrame = async (page) => { for (let i = 0; i < 60; i++) { const f = page.frames().find((x) => x !== page.mainFrame() && (x.url().includes('/games/') || x.url() === 'about:srcdoc')); if (f) return f; await wait(100); } throw new Error('no game frame'); };
@@ -40,7 +40,7 @@ const quit = async (page) => { await page.click('#rtQuit'); await page.waitForFu
 try {
   // =================================================================== main instance
   const A = 'http://localhost:5301';
-  await startLantern(5301);
+  await startServer(5301);
 
   // ---------------- accounts ----------------
   {
@@ -73,7 +73,7 @@ try {
   // ---------------- offline play (the server is really stopped) ----------------
   {
     const O = 'http://localhost:5304';
-    let srv = await startLantern(5304);
+    let srv = await startServer(5304);
     const { page, api, ctx, errors } = await newPlayer(O);
     const A = O;
     await page.goto(`${A}/app/tidewater`);
@@ -81,7 +81,7 @@ try {
     await page.click('[data-buy]');
     await page.click('.co [data-confirm]');
     await page.waitForSelector('.co-done');
-    await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('lantern.installs.v1'))?.tidewater; } catch { return false; } }, null, { timeout: 15000 });
+    await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('vibe.installs.v1'))?.tidewater; } catch { return false; } }, null, { timeout: 15000 });
     check('Purchase pre-caches the game for offline play', true);
     await page.goto(`${A}/library/tidewater`); await page.waitForSelector('.lib-detail');
     await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 10000 });
@@ -102,9 +102,9 @@ try {
     await f.click('[data-buy="skiff"]');
     await wait(1200);
     await quit(page);
-    const queued = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('lantern.queue')).map((k) => JSON.parse(localStorage.getItem(k)).length).reduce((a, n) => a + n, 0));
+    const queued = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('vibe.queue')).map((k) => JSON.parse(localStorage.getItem(k)).length).reduce((a, n) => a + n, 0));
     check('Offline saves and playtime are queued locally', queued >= 2, `${queued} queued`);
-    srv = await startLantern(5304); // back online, same data
+    srv = await startServer(5304); // back online, same data
     await ctx.setOffline(false);
     await page.goto(`${A}/library`); await page.waitForSelector('.lib-card');
     await wait(2500);
@@ -118,8 +118,8 @@ try {
       const m = await import('/js/offline/packages.js');
       const inst = m.installed('tidewater');
       const f = inst.files.find((x) => x.path === 'game.js');
-      const cache = await caches.open('lantern-packages-v1');
-      await cache.put(`/__lantern/blob/${f.sha256}`, new Response('alert("evil")', { headers: { 'Content-Type': 'text/javascript' } }));
+      const cache = await caches.open('vibe-packages-v1');
+      await cache.put(`/__vibe/blob/${f.sha256}`, new Response('alert("evil")', { headers: { 'Content-Type': 'text/javascript' } }));
       let fileCheck = 'accepted';
       try { await m.loadFiles('tidewater'); } catch (e) { fileCheck = e.message; }
       const forged = { ...inst.manifest, files: inst.manifest.files.map((x) => (x.path === 'game.js' ? { ...x, sha256: '0'.repeat(64) } : x)) };
@@ -164,8 +164,8 @@ try {
     // Creator guide + starter kit + earnings
     await page.goto(`${A}/developers`); await page.waitForSelector('.dv-hero');
     check('Creator guide renders with the revenue share', (await page.textContent('.dv-hero h1')).includes('90%') && (await page.$$('.dv-sec')).length >= 10);
-    const kit = await fetch(`${A}/creator/lantern-starter.zip`);
-    const starter = await api('POST', '/api/publish', { title: 'Firefly Jar', version: '1.0.0', priceCents: 499, tags: ['Casual'], package: { filename: 'lantern-starter.zip', dataBase64: Buffer.from(await kit.arrayBuffer()).toString('base64') } });
+    const kit = await fetch(`${A}/creator/vibe-games-starter.zip`);
+    const starter = await api('POST', '/api/publish', { title: 'Firefly Jar', version: '1.0.0', priceCents: 499, tags: ['Casual'], package: { filename: 'vibe-games-starter.zip', dataBase64: Buffer.from(await kit.arrayBuffer()).toString('base64') } });
     check('Starter kit downloads and publishes cleanly', kit.ok && starter.status === 200, starter.body?.error);
     const buyer = await newPlayer(A);
     await buyer.page.goto(`${A}/store`); await buyer.page.waitForSelector('#meChip');
@@ -179,7 +179,7 @@ try {
     await quit(buyer.page);
     const bs = await buyer.api('GET', `/api/games/${starter.body.gameId}/saves`);
     const ba = await buyer.api('GET', `/api/games/${starter.body.gameId}/achievements`);
-    check('Starter game saves and unlocks achievements on Lantern', bs.body.some((x) => x.key === 'progress') && ba.body.find((a) => a.id === 'first_catch')?.unlockedAt, JSON.stringify(bs.body));
+    check('Starter game saves and unlocks achievements on Vibe-Games', bs.body.some((x) => x.key === 'progress') && ba.body.find((a) => a.id === 'first_catch')?.unlockedAt, JSON.stringify(bs.body));
     await buyer.ctx.close();
     const mine = (await api('GET', '/api/creator/games')).body.find((x) => x.id === starter.body.gameId);
     check('Creator sees the sale and a 90% share', mine.sales.count === 1 && mine.sales.creatorCents === 449, JSON.stringify(mine.sales));
@@ -188,7 +188,7 @@ try {
     const cat = (await api('GET', '/api/catalog')).body;
     check("Store shelves are algorithmic and include the new game", cat.shelves.new.includes(starter.body.gameId) && cat.shelves.featured.length > 0 && cat.games.every((x) => x.status !== 'released' || x.rank), cat.shelves.new.join(','));
     await page.goto(`${A}/store`); await page.waitForSelector('.feat-main');
-    check('Store shows the New on Lantern shelf', (await page.textContent('.new-grid')).includes('Firefly Jar'));
+    check('Store shows the Fresh off the prompt shelf', (await page.textContent('.new-grid')).includes('Firefly Jar'));
     await page.goto(`${A}/publish`); await page.waitForSelector(`[data-rank="${starter.body.gameId}"]`);
     await page.click(`[data-rank="${starter.body.gameId}"]`);
     check('Publish page explains the score, signal by signal', (await page.$$(`#rank-${starter.body.gameId} .rk-table tbody tr`)).length === 5 && await page.isVisible(`#rank-${starter.body.gameId} .rk-window`));
@@ -204,7 +204,7 @@ try {
       req.on('data', (c) => { body += c; });
       req.on('end', () => {
         const u = new URL(req.url, 'http://x');
-        if (req.headers.authorization !== 'Bearer sk_test_lantern') { res.writeHead(401); res.end('{"error":{"message":"bad key"}}'); return; }
+        if (req.headers.authorization !== 'Bearer sk_test_vibe') { res.writeHead(401); res.end('{"error":{"message":"bad key"}}'); return; }
         if (req.method === 'POST' && u.pathname === '/v1/checkout/sessions') {
           const f = new URLSearchParams(body);
           const id = `cs_test_${crypto.randomBytes(6).toString('hex')}`;
@@ -228,7 +228,7 @@ try {
     const fakeApi = http.createServer((req, res) => (req.url.startsWith('/pay/') ? payPage.emit('request', req, res) : fake.emit('request', req, res)));
     await new Promise((r) => fakeApi.listen(5391, r));
     const S = 'http://localhost:5302';
-    await startLantern(5302, { STRIPE_SECRET_KEY: 'sk_test_lantern', STRIPE_API_BASE: 'http://127.0.0.1:5391', STRIPE_WEBHOOK_SECRET: WHSEC });
+    await startServer(5302, { STRIPE_SECRET_KEY: 'sk_test_vibe', STRIPE_API_BASE: 'http://127.0.0.1:5391', STRIPE_WEBHOOK_SECRET: WHSEC });
     const { page, api, ctx } = await newPlayer(S);
     await page.goto(`${S}/app/nightpaw`); await page.waitForSelector('[data-buy]');
     await page.click('[data-buy]');
@@ -264,9 +264,9 @@ try {
   // =================================================================== separate games origin
   {
     const P = 'http://localhost:5303', G = 'http://127.0.0.1:5303';
-    await startLantern(5303, { GAMES_ORIGIN: G, PUBLIC_URL: P });
+    await startServer(5303, { GAMES_ORIGIN: G, PUBLIC_URL: P });
     const { page, api, ctx, errors } = await newPlayer(P);
-    check('Games origin does not serve the platform or API', (await fetch(`${G}/api/state`, { headers: { 'X-Lantern-Client': 'platform' } })).status === 404 && (await fetch(`${G}/store`)).status === 404);
+    check('Games origin does not serve the platform or API', (await fetch(`${G}/api/state`, { headers: { 'X-Vibe-Client': 'platform' } })).status === 404 && (await fetch(`${G}/store`)).status === 404);
     check('Platform origin does not serve game files', (await fetch(`${P}/games/voidrunner/1.0.0/index.html`)).status === 404);
     const csp = (await fetch(`${G}/games/voidrunner/1.0.0/index.html`)).headers.get('content-security-policy');
     check('Game files only embeddable by the platform', csp.includes(`frame-ancestors ${P}`));

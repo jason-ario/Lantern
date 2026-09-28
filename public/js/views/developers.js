@@ -1,11 +1,11 @@
-// Creator guide: how to build, package, publish and earn with a Lantern game.
+// Creator guide: how to vibe-code, package, publish and earn with a Vibe-Games game.
 // Static content plus a few small interactive bits (earnings calculator, copy
 // buttons, a remembered launch checklist, a table-of-contents scroll spy).
 import { state } from '../state.js';
 import { esc, toast } from '../ui.js';
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
-const CHECK_KEY = 'lantern.devChecklist.v1';
+const CHECK_KEY = 'vibe.devChecklist.v1';
 // Mirrors server/ranking.js RANK; shown in the discovery section.
 let RANKDOC = state.discovery;
 
@@ -45,6 +45,7 @@ function code(src, lang = 'js', label = '') {
 const TOC = [
   ['earn', 'Earning money'],
   ['quickstart', 'Quick start'],
+  ['vibe', 'Vibe it with AI'],
   ['package', 'Package format'],
   ['sdk', 'Platform SDK'],
   ['saves', 'Saves that last'],
@@ -71,6 +72,7 @@ const CHECKLIST = [
   ['media', 'Key art and 3–6 screenshots are ready (16:9, important parts centred)'],
   ['copy', 'Short description sells the game in two sentences'],
   ['demo', 'The first five minutes are good enough to be the demo'],
+  ['vibe', 'The store page says what you built it with, and the prompt that started it (if you\'re brave)'],
 ];
 
 function earnSection(share, pct) {
@@ -80,14 +82,14 @@ function earnSection(share, pct) {
     <h2>Earning money</h2>
     <div class="dv-split">
       <div>
-        <p class="dv-lead">You set the price. Players buy once and own the game forever. <b>You keep ${pct} of every sale.</b> Lantern keeps ${100 - Math.round(share * 100)}% to run the store, hosting, downloads and cloud saves.</p>
+        <p class="dv-lead">You set the price. Players buy once and own the game forever. <b>You keep ${pct} of every sale.</b> Vibe-Games keeps ${100 - Math.round(share * 100)}% to run the store, hosting, downloads and cloud saves.</p>
         <ul class="dv-list">
           <li><b>One-time purchase.</b> Pick a price tier ($2.99–$19.99) or make it free. There are no subscriptions, ads or per-play fees.</li>
           <li><b>Demos sell games.</b> Turn on the 5-minute demo and anyone can try before they buy. Demo progress carries into the full game.</li>
           <li><b>Updates are free to ship.</b> Publish as many versions as you like. Owners get every update at no extra cost.</li>
           <li><b>Track sales in Publish → Your games.</b> Each game shows its sales and your share.</li>
         </ul>
-        <div class="dv-note"><span class="dv-pill">Planned</span><div><b>Payouts aren't live yet.</b> The ${pct}/${100 - Math.round(share * 100)} split is Lantern's planned creator policy. Your share is ${pct} of <em>net</em> revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to your bank account are coming. Until then, sales are recorded per game so nothing gets lost.</div></div>
+        <div class="dv-note"><span class="dv-pill">Planned</span><div><b>Payouts aren't live yet.</b> The ${pct}/${100 - Math.round(share * 100)} split is Vibe-Games' planned creator policy. Your share is ${pct} of <em>net</em> revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to your bank account are coming. Until then, sales are recorded per game so nothing gets lost.</div></div>
       </div>
       <div class="dv-calc panel" id="calc">
         <div class="dv-calc-h">Earnings estimate</div>
@@ -109,21 +111,40 @@ function body(share, pct) {
   <section id="quickstart" class="dv-sec">
     <h2>Quick start: your first game in 10 minutes</h2>
     <ol class="dv-steps">
-      <li><b>Download the starter kit.</b> <a class="btn btn-buy btn-sm" href="/creator/lantern-starter.zip" download>lantern-starter.zip</a> <span class="muted small">It contains a small complete game, “Firefly Jar”, with cloud saves, achievements and pause handling.</span></li>
+      <li><b>Download the starter kit.</b> <a class="btn btn-buy btn-sm" href="/creator/vibe-games-starter.zip" download>vibe-games-starter.zip</a> <span class="muted small">It contains a small complete game, “Firefly Jar”, with cloud saves, achievements and pause handling.</span></li>
       <li><b>Run it on your computer.</b> Unzip it, open a terminal in the folder and start any static web server, then open <code>http://localhost:8000</code>.
         ${code(`# pick one
 npx serve -l 8000
 python -m http.server 8000`, 'text', 'Terminal')}
-        <span class="muted small">Outside Lantern the SDK can't load, so the included <code>lantern-dev.js</code> stands in for it. Saves go to your browser's localStorage and achievements are logged to the console.</span></li>
-      <li><b>Make it yours.</b> Edit <code>game.js</code>, or drop in your own game and keep the three script tags from <code>index.html</code>. Change the name and achievements in <code>manifest.json</code>.</li>
+        <span class="muted small">Outside Vibe-Games the SDK can't load, so the included <code>vibe-dev.js</code> stands in for it. Saves go to your browser's localStorage and achievements are logged to the console.</span></li>
+      <li><b>Vibe it into your game.</b> Open the folder in your AI tool of choice (Claude Code, Cursor, Copilot, whatever you like), tell it to read <code>VIBE.md</code>, then describe the game you want. Already have a game? Drop it in and keep the three script tags from <code>index.html</code>. Change the name and achievements in <code>manifest.json</code>.</li>
       <li><b>Zip the folder.</b> On Windows: select the files → right-click → <i>Send to → Compressed (zipped) folder</i>. On macOS: select the files → right-click → <i>Compress</i>. On the command line: <code>zip -r ../my-game.zip .</code></li>
-      <li><b>Publish.</b> Go to <a href="/publish" data-link>Publish</a>, drop the zip, check the report, fill in the store page and click <b>Publish to Lantern</b>. Your store page is live straight away.</li>
+      <li><b>Publish.</b> Go to <a href="/publish" data-link>Publish</a>, drop the zip, check the report, fill in the store page and the vibe, and click <b>Ship it</b>. Your store page is live straight away.</li>
+    </ol>
+  </section>
+
+  <section id="vibe" class="dv-sec">
+    <h2>Vibe it with AI</h2>
+    <p>Your AI assistant is great at games and has no idea how our sandbox works. Fix that in one step: give it <b>VIBE.md</b>. It's in the starter kit and it explains the package format, the SDK, what the sandbox blocks and the quality bar, in words a coding assistant follows well.</p>
+    <div class="dv-cta"><button type="button" class="btn btn-buy btn-sm" id="copyBrief">Copy VIBE.md</button><a class="btn btn-ghost btn-sm" href="/creator/VIBE.md" target="_blank" rel="noopener">Open it</a></div>
+    ${code(`Read VIBE.md first and follow it exactly. Then build me:
+a one-button game about a paper plane riding thermals between cliffs.
+Hold to climb, let go to glide. Calm, warm colours. Save my best flight
+with Platform.storage and unlock "first_flight" after the first landing.`, 'text', 'Your first prompt')}
+    <div class="dv-tips">
+      <div><h4>Feel first, features later</h4><p>Ask for controls that feel great before menus, story or upgrades. A game that's fun to move around in survives every later prompt.</p></div>
+      <div><h4>Paste the error, not a summary</h4><p>Copy the console error and the steps that caused it. Your assistant fixes a stack trace far faster than “it's broken”.</p></div>
+      <div><h4>Play every build</h4><p>Vibe coding is a loop: prompt, play, react. Five-minute loops beat one giant prompt, every time.</p></div>
+      <div><h4>Ask for the boring bits</h4><p>Save migrations, pause on tab hide, touch controls and window resizing are all one prompt away. They're what make a game feel premium.</p></div>
+      <div><h4>Keep it bundled</h4><p>If your assistant reaches for a CDN, a Google Font or an API, tell it to download the file into the folder instead. The sandbox blocks the network.</p></div>
+      <div><h4>Show your vibe</h4><p>When you publish, pick the tools you used, paste the first prompt and add your build time. Players love the story, and they can find your game by tool.</p></div>
+    </div>
     </ol>
   </section>
 
   <section id="package" class="dv-sec">
     <h2>Package format</h2>
-    <p>A Lantern game is an ordinary web game folder, zipped. <code>manifest.json</code> and the entry HTML go at the top level of the zip. A single wrapping folder is also fine, because Lantern strips it.</p>
+    <p>A Vibe-Games game is an ordinary web game folder, zipped. <code>manifest.json</code> and the entry HTML go at the top level of the zip. A single wrapping folder is also fine, because Vibe-Games strips it.</p>
     <div class="dv-split">
       ${code(`my-game/
   manifest.json     describes the game
@@ -151,14 +172,14 @@ python -m http.server 8000`, 'text', 'Terminal')}
       <tr><td><code>input</code>, <code>runtime</code></td><td>No</td><td>Informational for now. Listing <code>"mouse"</code>, <code>"touch"</code>, <code>"keyboard"</code> or <code>"gamepad"</code> helps future store filters.</td></tr>
     </tbody></table>
     <div class="dv-limits"><div><b>50 MB</b><span>max zip size</span></div><div><b>2,000</b><span>max files</span></div><div><b>A–Z 0–9 . _ - /</b><span>allowed in file paths (spaces OK)</span></div><div><b>Immutable</b><span>a published version never changes</span></div></div>
-    <p class="muted small">A single <code>.html</code> file also works, and Lantern generates a manifest for it. You'll want a real manifest as soon as you add achievements.</p>
+    <p class="muted small">A single <code>.html</code> file also works, and Vibe-Games generates a manifest for it. You'll want a real manifest as soon as you add achievements.</p>
   </section>
 
   <section id="sdk" class="dv-sec">
     <h2>Platform SDK</h2>
-    <p>Your game runs in a locked-down sandbox and talks to Lantern only through <code>window.Platform</code>. Load the SDK with this exact path. Lantern serves it, so don't copy it into your zip.</p>
+    <p>Your game runs in a locked-down sandbox and talks to Vibe-Games only through <code>window.Platform</code>. Load the SDK with this exact path. Vibe-Games serves it, so don't copy it into your zip.</p>
     ${code(`<script src="/sdk/v1/platform-sdk.js"></script>
-<script src="lantern-dev.js"></script>  <!-- optional: lets the game run outside Lantern -->
+<script src="vibe-dev.js"></script>  <!-- optional: lets the game run outside Vibe-Games -->
 <script src="game.js"></script>`, 'html', 'index.html')}
     <p>Every call returns a Promise. Calls made before the connection is up are queued, but it's good practice to <code>await Platform.ready()</code> first.</p>
     ${code(`const launch = await Platform.ready();
@@ -176,18 +197,18 @@ Platform.game.onPause(() => game.pause());       // overlay opened, tab hidden
 Platform.game.onResume(() => game.resume());
 Platform.game.onExit(() => Platform.storage.save('progress', save)); // before quit`, 'js', 'game.js')}
     <table class="dv-table dv-api"><thead><tr><th>Call</th><th>Returns</th><th>Notes</th></tr></thead><tbody>
-      <tr><td><code>Platform.ready()</code></td><td>launch context</td><td>Resolves once connected to Lantern. <code>mode</code> is <code>'demo'</code> during a free demo.</td></tr>
+      <tr><td><code>Platform.ready()</code></td><td>launch context</td><td>Resolves once connected to Vibe-Games. <code>mode</code> is <code>'demo'</code> during a free demo.</td></tr>
       <tr><td><code>user.getCurrentUser()</code></td><td><code>{ id, displayName }</code></td><td>The id is pseudonymous and per game. It can't be used to track players across games.</td></tr>
       <tr><td><code>storage.save(key, value)</code></td><td><code>{ revision, savedAt }</code></td><td>Any JSON value up to 256 KB. Keys: <code>A–Z a–z 0–9 _ . -</code>, 1–64 characters. Synced to the cloud.</td></tr>
       <tr><td><code>storage.load(key)</code></td><td>value or <code>null</code></td><td><code>null</code> means there's no save yet.</td></tr>
       <tr><td><code>storage.list()</code></td><td><code>[{ key, sizeBytes, updatedAt }]</code></td><td>Useful for save-slot menus.</td></tr>
       <tr><td><code>storage.remove(key)</code></td><td><code>true</code></td><td>Deletes one save.</td></tr>
-      <tr><td><code>achievements.unlock(id)</code></td><td><code>{ id, newlyUnlocked, unlockedAt }</code></td><td>Safe to call again and again; Lantern shows the toast only once. The id must be in your manifest.</td></tr>
+      <tr><td><code>achievements.unlock(id)</code></td><td><code>{ id, newlyUnlocked, unlockedAt }</code></td><td>Safe to call again and again; Vibe-Games shows the toast only once. The id must be in your manifest.</td></tr>
       <tr><td><code>achievements.list()</code></td><td><code>[{ id, name, description, unlockedAt }]</code></td><td><code>unlockedAt</code> is <code>null</code> while locked.</td></tr>
-      <tr><td><code>game.onExit(fn)</code></td><td>–</td><td>Runs when the player quits. <code>fn</code> may be async. Lantern waits up to about 1.5 s.</td></tr>
-      <tr><td><code>game.onPause(fn)</code> / <code>onResume(fn)</code></td><td>–</td><td>Pause game time, audio and input while the Lantern overlay is open.</td></tr>
-      <tr><td><code>game.exit()</code></td><td><code>true</code></td><td>Asks Lantern to close the game, for example from your own “Quit” menu item.</td></tr>
-      <tr><td><code>game.reportPlaytime()</code></td><td><code>{ sessionSeconds }</code></td><td>Optional. Lantern keeps the official playtime clock itself.</td></tr>
+      <tr><td><code>game.onExit(fn)</code></td><td>–</td><td>Runs when the player quits. <code>fn</code> may be async. Vibe-Games waits up to about 1.5 s.</td></tr>
+      <tr><td><code>game.onPause(fn)</code> / <code>onResume(fn)</code></td><td>–</td><td>Pause game time, audio and input while the Vibe-Games overlay is open.</td></tr>
+      <tr><td><code>game.exit()</code></td><td><code>true</code></td><td>Asks Vibe-Games to close the game, for example from your own “Quit” menu item.</td></tr>
+      <tr><td><code>game.reportPlaytime()</code></td><td><code>{ sessionSeconds }</code></td><td>Optional. Vibe-Games keeps the official playtime clock itself.</td></tr>
     </tbody></table>
     <p>Failed calls reject with an error that has a <code>code</code>:</p>
     <div class="dv-codes">
@@ -219,7 +240,7 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
 
   <section id="sandbox" class="dv-sec">
     <h2>What games can do (and can't)</h2>
-    <p>Lantern treats every game as untrusted code, so it runs isolated from the store, player accounts and other games. That's why players feel safe buying from new developers. In practice:</p>
+    <p>Vibe-Games treats every game as untrusted code, so it runs isolated from the store, player accounts and other games. That's why players feel safe buying from new developers. In practice:</p>
     <div class="dv-yn">
       <div class="dv-yes"><h4>Works</h4><ul>
         <li>Canvas 2D, WebGL, WebGL2 and WebAssembly</li>
@@ -244,21 +265,22 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
   <section id="test" class="dv-sec">
     <h2>Test before you ship</h2>
     <ol class="dv-steps">
-      <li><b>Locally, with the dev stand-in.</b> <code>lantern-dev.js</code> applies the same limits as the real runtime (key format, 256 KB, achievement ids), so mistakes show up in the console early.</li>
+      <li><b>Locally, with the dev stand-in.</b> <code>vibe-dev.js</code> applies the same limits as the real runtime (key format, 256 KB, achievement ids), so mistakes show up in the console early.</li>
       <li><b>With the package check.</b> Dropping a zip on the Publish page inspects it before anything is published. It checks the manifest, entry file, file paths and whether the SDK is loaded. Fix every error; read every warning.</li>
-      <li><b>On Lantern itself.</b> After publishing, play it from your library. Quit and relaunch to confirm the save loads. Try it on a phone. Download it (Library → Offline), turn off Wi-Fi and play again. That run is exactly what paying players get.</li>
+      <li><b>On Vibe-Games itself.</b> After publishing, play it from your library. Quit and relaunch to confirm the save loads. Try it on a phone. Download it (Library → Offline), turn off Wi-Fi and play again. That run is exactly what paying players get.</li>
     </ol>
   </section>
 
   <section id="publish" class="dv-sec">
     <h2>Publishing</h2>
     <ol class="dv-steps">
-      <li><b>Get creator access.</b> Publishing is invite-only while Lantern is in early access. Ask the Lantern team for the creator password, then unlock it once on the <a href="/publish" data-link>Publish</a> page.</li>
+      <li><b>Get creator access.</b> Publishing is invite-only while Vibe-Games is in early access. Ask the Vibe-Games team for the creator password, then unlock it once on the <a href="/publish" data-link>Publish</a> page.</li>
       <li><b>Upload your build.</b> Drop the zip. The report shows the files, size, SDK detection and achievements it found.</li>
       <li><b>Write the store page.</b> Add a title (2–60 characters), developer name, a price, a short description of one or two sentences, a longer “About this game”, and up to 8 tags.</li>
-      <li><b>Add media.</b> One key-art image (PNG, JPG or WebP, up to 8 MB) is used for the capsule, header and banner, cropped to fit each, so keep the title and hero in the centre. Add up to 6 screenshots, 16:9 at 1280×720 or larger. If you skip media, Lantern generates placeholder art.</li>
+      <li><b>Share the vibe.</b> Pick the AI tools you built it with (at least one, up to five). Optionally add the prompt that started it and roughly how many hours it took. It shows on your store page as “How it was vibed”.</li>
+      <li><b>Add media.</b> One key-art image (PNG, JPG or WebP, up to 8 MB) is used for the capsule, header and banner, cropped to fit each, so keep the title and hero in the centre. Add up to 6 screenshots, 16:9 at 1280×720 or larger. If you skip media, Vibe-Games generates placeholder art.</li>
       <li><b>Choose the demo.</b> The 5-minute demo is on by default. When it ends, players see a buy screen, and their progress carries over when they buy.</li>
-      <li><b>Publish.</b> The store page, search listing and checkout go live instantly, and the game joins the <b>New on Lantern</b> shelf. Your developer name is reserved for your account.</li>
+      <li><b>Publish.</b> The store page, search listing and checkout go live instantly, and the game joins the <b>Fresh off the prompt</b> shelf. Your developer name is reserved for your account.</li>
     </ol>
   </section>
 
@@ -275,12 +297,12 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
 
   <section id="discovery" class="dv-sec">
     <h2>How discovery works</h2>
-    <p>Nobody at Lantern hand-picks the store. Every shelf is built from how players actually play, so a great game from an unknown developer can beat a big name. There's no review queue and no fee to get in.</p>
+    <p>Nobody at Vibe-Games hand-picks the store. Every shelf is built from how players actually play, so a great game from an unknown developer can beat a big name. There's no review queue and no fee to get in.</p>
     <ol class="dv-steps">
-      <li><b>Discovery window.</b> Every new game goes on the <b>New on Lantern</b> shelf until it has had ${RANKDOC.windowPlayers} players or ${RANKDOC.windowDays} days pass. Games with the fewest players are shown first, so everyone gets a fair first audience.</li>
-      <li><b>Lantern Score.</b> Scores go from 0 to 100 and are built from five signals (below). Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.</li>
+      <li><b>Discovery window.</b> Every new game goes on the <b>Fresh off the prompt</b> shelf until it has had ${RANKDOC.windowPlayers} players or ${RANKDOC.windowDays} days pass. Games with the fewest players are shown first, so everyone gets a fair first audience.</li>
+      <li><b>Vibe Score.</b> Scores go from 0 to 100 and are built from five signals (below). Until enough people have played, scores start near a neutral middle, so a handful of players can't make or break a game.</li>
       <li><b>Promotion.</b> After the window, games scoring <b>${RANKDOC.promoteAt}+</b> are promoted to the front page, Trending, Hidden gems and recommendations. The rest stay listed: searchable, buyable and with a store page. Scores update continuously, so a great update can get a game promoted later.</li>
-      <li><b>Launch health.</b> If most launches fail to connect to Lantern or throw uncaught errors, the game is taken off shelves until a fixed update is published.</li>
+      <li><b>Launch health.</b> If most launches fail to connect to Vibe-Games or throw uncaught errors, the game is taken off shelves until a fixed update is published.</li>
     </ol>
     <table class="dv-table"><thead><tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr></thead><tbody>
       <tr><td>Hook</td><td>30%</td><td>Share of players who play 15+ minutes</td></tr>
@@ -333,19 +355,19 @@ export async function render(root) {
   root.innerHTML = `<div class="page dev">
     <header class="dv-hero">
       <div class="dv-hero-text">
-        <div class="eyebrow">Lantern for creators</div>
-        <h1>Sell your web game.<br>Keep <span>${pct}</span>.</h1>
-        <p>If it runs in a browser, it can be a premium game on Lantern: owned forever, playable instantly and offline, with cloud saves and achievements built in. This guide goes from zip to first sale.</p>
-        <div class="dv-cta"><a class="btn btn-buy btn-lg" href="/creator/lantern-starter.zip" download>Download starter kit</a><a class="btn btn-ghost btn-lg" href="/publish" data-link>Open Publish</a></div>
+        <div class="eyebrow">vibe-games for creators</div>
+        <h1>You vibed it.<br>Now sell it. Keep <span>${pct}</span>.</h1>
+        <p>If you built it with AI and it runs in a browser, it can be a premium game on Vibe-Games: owned forever, playable in one click and offline, with cloud saves and achievements built in. This guide goes from first prompt to first sale.</p>
+        <div class="dv-cta"><a class="btn btn-buy btn-lg" href="/creator/vibe-games-starter.zip" download>Download starter kit</a><a class="btn btn-ghost btn-lg" href="#vibe">Get the AI brief</a><a class="btn btn-ghost btn-lg" href="/publish" data-link>Open Publish</a></div>
       </div>
       <div class="dv-hero-stats">
         <div><b>${pct}</b><span>revenue share to you<br><small>(planned policy)</small></span></div>
-        <div><b>1 zip</b><span>HTML + JS + manifest</span></div>
+        <div><b>1 brief</b><span>VIBE.md teaches your AI the rules</span></div>
         <div><b>~10 lines</b><span>of SDK code for saves and achievements</span></div>
         <div><b>Instant</b><span>store page goes live on publish</span></div>
       </div>
     </header>
-    <div class="dv-flow">${[['Build', 'Any HTML/JS/WASM game'], ['Integrate', 'Add the SDK for saves and achievements'], ['Package', 'Zip it with a manifest.json'], ['Publish', 'Store page, demo and checkout'], ['Earn', `${pct} of every sale`]].map(([t, s], i) => `<div><b>${i + 1}</b><span>${t}</span><small>${s}</small></div>`).join('')}</div>
+    <div class="dv-flow">${[['Prompt', 'Describe your game to your AI'], ['Integrate', 'SDK for saves and achievements'], ['Package', 'Zip it with a manifest.json'], ['Ship', 'Store page, demo and checkout'], ['Earn', `${pct} of every sale`]].map(([t, s], i) => `<div><b>${i + 1}</b><span>${t}</span><small>${s}</small></div>`).join('')}</div>
     <div class="dv-layout">
       <nav class="dv-toc" aria-label="On this page">${TOC.map(([id, t]) => `<a href="#${id}" data-toc="${id}">${t}</a>`).join('')}</nav>
       <article class="dv-body">${body(share, pct)}</article>
@@ -373,6 +395,12 @@ export async function render(root) {
 
   // copy buttons + in-page anchors (the router owns plain links)
   root.onclick = async (e) => {
+    if (e.target.closest('#copyBrief')) {
+      const b = e.target.closest('#copyBrief');
+      try { await navigator.clipboard.writeText(await (await fetch('/creator/VIBE.md')).text()); b.textContent = 'Copied. Paste it into your AI'; setTimeout(() => { b.textContent = 'Copy VIBE.md'; }, 2200); }
+      catch { toast('Copy failed. Open VIBE.md and copy it from there', { kind: 'error' }); }
+      return;
+    }
     const c = e.target.closest('[data-copy]');
     if (c) {
       try { await navigator.clipboard.writeText(CODES[+c.dataset.copy]); c.textContent = 'Copied'; setTimeout(() => { c.textContent = 'Copy'; }, 1400); }

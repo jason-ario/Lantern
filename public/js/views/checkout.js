@@ -1,5 +1,5 @@
 // Checkout. With Stripe configured the player is sent to Stripe's hosted payment
-// page; otherwise the fake "Lantern Wallet" confirms instantly (prototype mode).
+// page; otherwise the fake "Vibe Wallet" confirms instantly (prototype mode).
 import { api, ApiError } from '../api.js';
 import { state, purchase, applyUserState } from '../state.js';
 import { esc, price, modal, icons, logo, toast } from '../ui.js';
@@ -7,7 +7,7 @@ import { go } from '../nav.js';
 import { openAuth } from './auth.js';
 import * as packages from '../offline/packages.js';
 
-const autoDownload = () => { try { return localStorage.getItem('lantern.autoDownload') !== '0'; } catch { return true; } };
+const autoDownload = () => { try { return localStorage.getItem('vibe.autoDownload') !== '0'; } catch { return true; } };
 
 // After any purchase: pre-cache the build so it's playable offline right away.
 export function afterPurchase(g) {
@@ -37,7 +37,7 @@ export async function openCheckout(g, { inGame = false, onPurchased, onBeforeRed
     return;
   }
   if (r.status === 'redirect') {
-    try { sessionStorage.setItem('lantern.checkout', JSON.stringify({ orderId: r.orderId, gameId: g.id, inGame })); } catch { /* ignore */ }
+    try { sessionStorage.setItem('vibe.checkout', JSON.stringify({ orderId: r.orderId, gameId: g.id, inGame })); } catch { /* ignore */ }
     await onBeforeRedirect?.(); // e.g. save & close a running game first
     location.href = r.redirectUrl; // Stripe-hosted checkout
     return;
@@ -61,9 +61,9 @@ function mockCheckout(g, { inGame, onPurchased }) {
       </div>
       <div class="co-pay">
         <div class="co-pay-label">Payment method</div>
-        <label class="co-method"><input type="radio" checked> <span><b>Lantern Wallet</b><small>Prototype — no real payment is taken (Stripe isn't configured on this server)</small></span></label>
+        <label class="co-method"><input type="radio" checked> <span><b>Vibe Wallet</b><small>Prototype — no real payment is taken (Stripe isn't configured on this server)</small></span></label>
       </div>
-      <p class="co-fine">Your purchase is a permanent licence tied to your Lantern account. Saves, achievements and playtime follow you across web and desktop.${state.user?.guest ? ' <b>Tip:</b> create an account so you never lose it.' : ''}</p>
+      <p class="co-fine">Your purchase is a permanent licence tied to your Vibe-Games account. Saves, achievements and playtime follow you across web and desktop.${state.user?.guest ? ' <b>Tip:</b> create an account so you never lose it.' : ''}</p>
       <div class="co-actions"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy btn-lg" data-confirm>Confirm purchase · ${price(g.priceCents)}</button></div>
     </div>`, {
     onMount(el, close) {

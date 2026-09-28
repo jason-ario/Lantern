@@ -1,16 +1,17 @@
 import { state, released, shelf, byDiscovery } from '../state.js';
-import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, rankBadges, compact, $, $$ } from '../ui.js';
+import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, rankBadges, compact, vibeChips, vibeTime, bytes, $, $$ } from '../ui.js';
+import { TOOL_BY_ID } from '../vibe.js';
 import { go } from '../nav.js';
 
 export function storeBar(active = 'home', q = '') {
   return `<div class="store-bar"><div class="page store-bar-inner">
-    <a href="/store" data-link class="${active === 'home' ? 'on' : ''}">Your Store</a>
-    <a href="/search?sort=new" data-link class="${active === 'new' ? 'on' : ''}">New &amp; Noteworthy</a>
-    <a href="/search?demo=1" data-link class="${active === 'demo' ? 'on' : ''}">Instant Demos</a>
-    <a href="/search?sort=top" data-link class="${active === 'top' ? 'on' : ''}">Top Sellers</a>
-    <a href="/search?sort=played" data-link class="${active === 'played' ? 'on' : ''}">Most Played</a>
+    <a href="/store" data-link class="${active === 'home' ? 'on' : ''}">Home</a>
+    <a href="/search?sort=new" data-link class="${active === 'new' ? 'on' : ''}">Fresh drops</a>
+    <a href="/search?demo=1" data-link class="${active === 'demo' ? 'on' : ''}">Try instantly</a>
+    <a href="/search?sort=top" data-link class="${active === 'top' ? 'on' : ''}">Top sellers</a>
+    <a href="/search?sort=played" data-link class="${active === 'played' ? 'on' : ''}">Most played</a>
     <form class="store-search" role="search" id="storeSearch">
-      <input name="q" type="search" placeholder="Search the store" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
+      <input name="q" type="search" placeholder="Search games, tags or tools" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
       <button aria-label="Search">${icons.search}</button>
     </form>
   </div></div>`;
@@ -42,7 +43,7 @@ function listRow(g) {
     <div class="lr-art" style="background-image:url('${esc(g.media.header)}')"></div>
     <div class="lr-body">
       <div class="lr-title">${esc(g.title)}</div>
-      <div class="lr-tags">${g.tags.slice(0, 4).map(esc).join(', ')}</div>
+      <div class="lr-tags">${g.tags.slice(0, 4).map(esc).join(', ')}</div>${g.builtWith?.length ? `<div class="lr-vibe">${vibeChips(g.builtWith, { max: 3, size: 'sm' })}</div>` : ''}
       <div class="lr-sub">${g.status === 'coming_soon' ? `Releases ${date(g.releaseDate)}` : `<span class="${r.cls}">${r.label}</span>`}${g.demo ? ' · <span class="demo-inline">Instant demo</span>' : ''} ${rankBadges(g, 1)}</div>
     </div>
     <div class="lr-price">${priceTag(g, { compact: true })}</div>
@@ -55,6 +56,7 @@ function preview(g) {
   return `<div class="pv-title">${esc(g.title)}</div>
     <div class="pv-meta"><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</div>
     <div class="pv-tags">${g.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+    ${g.vibe?.prompt ? `<div class="pv-prompt"><span>&gt;</span> ${esc(g.vibe.prompt)}</div>` : ''}
     ${g.media.screenshots.slice(0, 4).map((s) => `<div class="pv-shot" style="background-image:url('${esc(s)}')"></div>`).join('')}`;
 }
 
@@ -74,11 +76,35 @@ export async function render(root) {
   };
   const rec = recommendations();
   const topTags = state.tags.slice(0, 8);
+  const tools = state.tools.filter((t) => TOOL_BY_ID.has(t.id) && t.id !== 'other').slice(0, 8);
+  const quickest = released().filter((g) => g.vibe?.hours).sort((a, b) => a.vibe.hours - b.vibe.hours)[0];
+  const heroGame = feat[0];
 
   root.innerHTML = `${storeBar('home')}
   <div class="page store">
+    <section class="vg-hero">
+      <div>
+        <span class="vg-hero-kicker"><i></i>${released().length} vibe-coded games · play any of them in one click</span>
+        <h1>Prompted into existence.<br><em>Polished enough to pay&nbsp;for.</em></h1>
+        <p>Vibe-Games is the premium store for games built with AI. Every game here was made by a human with a vision and a coding assistant with no sleep schedule. No installs, no launchers: hit play and you're in.</p>
+        <div class="vg-cta">
+          <a class="btn btn-buy btn-lg" href="/search?demo=1" data-link>${icons.play} Play something now</a>
+          <a class="btn btn-ghost btn-lg" href="/developers" data-link>Ship your vibe-coded game</a>
+        </div>
+      </div>
+      ${heroGame ? `<div class="vg-term" aria-hidden="true">
+        <div class="vg-term-h"><span></span><span></span><span></span><small>~/games/${esc(heroGame.id)}</small></div>
+        <div class="vg-term-b">
+          <div class="ln"><span class="pr">&gt;</span> ${esc(heroGame.vibe?.prompt ?? heroGame.shortDescription)}</div>
+          <div class="ln dim">  …${heroGame.vibe?.hours ? ` ${esc(vibeTime(heroGame))} of vibing later` : ''}</div>
+          <div class="ln ok">✓ ${esc(heroGame.title)} is live · ${heroGame.version ? bytes(heroGame.version.sizeBytes) : 'instant play'}</div>
+          <div class="ln"><span class="pr">&gt;</span> <a href="/play/${esc(heroGame.id)}${state.owned.has(heroGame.id) ? '' : '?demo=1'}" data-link>play ${esc(heroGame.id)}</a><span class="caret"></span></div>
+        </div>
+      </div>` : ''}
+    </section>
+
     <section class="block">
-      <div class="sec-h"><h2>Featured &amp; Recommended</h2></div>
+      <div class="sec-h"><h2>Featured vibes</h2><span class="sec-note">Picked by how players actually play, not by us</span></div>
       <div class="feat" id="feat">
         <a class="feat-main" id="featMain" href="#" data-link></a>
         <div class="feat-side" id="featSide"></div>
@@ -88,17 +114,17 @@ export async function render(root) {
     </section>
 
     ${fresh.length ? `<section class="block">
-      <div class="sec-h"><h2>New on Lantern</h2><span class="sec-note">Every new game gets a spot here while it finds its first players</span><a href="/search?sort=new" data-link>See all</a></div>
+      <div class="sec-h"><h2>Fresh off the prompt</h2><span class="sec-note">Every new game gets the spotlight here while it finds its first players</span><a href="/search?sort=new" data-link>See all</a></div>
       <div class="capsule-grid new-grid">${fresh.slice(0, 4).map((g) => capsule(g)).join('')}</div>
     </section>` : ''}
 
     <section class="block instant">
-      <div class="sec-h"><h2><span class="bolt">${icons.bolt}</span> Play instantly — no download, no install</h2><a href="/search?demo=1" data-link>See all</a></div>
+      <div class="sec-h"><h2><span class="bolt">${icons.bolt}</span> Zero installs. Just vibes.</h2><span class="sec-note">Free demos that start in about a second</span><a href="/search?demo=1" data-link>See all</a></div>
       <div class="instant-grid">
         ${demos.map((g) => `<div class="instant-card">
           <a class="ic-art" href="/app/${esc(g.id)}" data-link style="background-image:url('${esc(g.media.hero)}')">${logo(g, 'md')}</a>
           <div class="ic-body">
-            <div><div class="ic-title">${esc(g.title)}</div><div class="ic-sub">${esc(g.blurb ?? '')} · ${g.demo.minutes}-min demo · ${g.version ? `${Math.max(1, Math.round(g.version.sizeBytes / 1024))} KB` : ''}</div></div>
+            <div><div class="ic-title">${esc(g.title)}</div><div class="ic-sub">${esc(g.blurb ?? '')} · ${g.demo.minutes}-min demo · ${g.version ? bytes(g.version.sizeBytes) : ''}</div>${g.builtWith?.length ? `<div class="ic-vibe">${vibeChips(g.builtWith, { max: 2, size: 'sm' })}</div>` : ''}</div>
             <div class="ic-actions">
               ${state.owned.has(g.id)
                 ? `<a class="btn btn-play" href="/play/${esc(g.id)}" data-link>${icons.play} Play</a>`
@@ -116,7 +142,7 @@ export async function render(root) {
 
     <section class="block">
       <div class="tabs" role="tablist">
-        <button class="on" data-tab="top">Top Sellers</button><button data-tab="played">Most Played</button><button data-tab="new">New Releases</button><button data-tab="soon">Coming Soon</button>
+        <button class="on" data-tab="top">Top sellers</button><button data-tab="played">Most played</button><button data-tab="new">New releases</button><button data-tab="soon">Still cooking</button>
       </div>
       <div class="tabbed">
         <div class="tab-list" id="tabList"></div>
@@ -125,18 +151,23 @@ export async function render(root) {
     </section>
 
     ${gems.length ? `<section class="block">
-      <div class="sec-h"><h2>Hidden gems</h2><span class="sec-note">Players who find these keep playing, but not many have found them yet</span></div>
+      <div class="sec-h"><h2>Hidden gems</h2><span class="sec-note">The people who find these can't stop playing. Not many have found them yet</span></div>
       <div class="capsule-grid">${gems.slice(0, 4).map((g) => capsule(g)).join('')}</div>
     </section>` : ''}
 
     ${free.length ? `<section class="block">
-      <div class="sec-h"><h2>Free &amp; great</h2><span class="sec-note">Free games players are actually hooked on</span><a href="/search?max=0" data-link>See all free</a></div>
+      <div class="sec-h"><h2>Free &amp; great</h2><span class="sec-note">Free games people are actually hooked on</span><a href="/search?max=0" data-link>See all free</a></div>
       <div class="capsule-grid">${free.slice(0, 4).map((g) => capsule(g)).join('')}</div>
     </section>` : ''}
 
     ${rec.games.length ? `<section class="block">
       <div class="sec-h"><h2>Recommended for you</h2>${rec.basis ? `<span class="sec-note">Because you play <a href="/app/${esc(rec.basis.id)}" data-link>${esc(rec.basis.title)}</a></span>` : ''}</div>
       <div class="capsule-grid">${rec.games.map((g) => capsule(g)).join('')}</div>
+    </section>` : ''}
+
+    ${tools.length ? `<section class="block">
+      <div class="sec-h"><h2>Browse by what built it</h2><span class="sec-note">Every game lists the AI tools behind it${quickest ? `. Fastest build: <a href="/app/${esc(quickest.id)}" data-link>${esc(quickest.title)}</a>, in ${esc(vibeTime(quickest))}` : ''}</span></div>
+      <div class="tool-tiles">${tools.map((t) => { const tool = TOOL_BY_ID.get(t.id); return `<a class="tool-tile" href="/search?tool=${encodeURIComponent(t.id)}" data-link style="--c:${tool.color}"><i></i><b>${esc(tool.name)}</b><small>${t.count} ${t.count === 1 ? 'game' : 'games'}</small></a>`; }).join('')}</div>
     </section>` : ''}
 
     <section class="block">
@@ -164,6 +195,7 @@ export async function render(root) {
       <div class="fs-shots">${g.media.screenshots.slice(0, 4).map((s) => `<div style="background-image:url('${esc(s)}')"></div>`).join('')}</div>
       <div class="fs-status">${state.owned.has(g.id) ? 'In your library' : g.rank?.players >= 10 ? `${compact(g.rank.players)} players this month` : 'Now available'} ${rankBadges(g, 2)}</div>
       <div class="fs-tags">${tagChips(g.tags, 4)}</div>
+      ${g.builtWith?.length ? `<div class="fs-vibe"><small>built with</small>${vibeChips(g.builtWith, { max: 3, size: 'sm' })}${vibeTime(g) ? `<small>in ${esc(vibeTime(g))}</small>` : ''}</div>` : ''}
       <div class="fs-foot"><span class="${r.cls}">${r.label}</span>${g.demo ? '<span class="demo-inline">Instant demo</span>' : ''}${priceTag(g)}</div>`;
     $$('#featDots button', root).forEach((b, j) => b.classList.toggle('on', j === fi));
   };

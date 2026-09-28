@@ -12,6 +12,7 @@ export const state = {
   games: [],
   byId: new Map(),
   tags: [],
+  tools: [], // [{ id, count }] AI tools games were built with
   shelves: {},
   discovery: { promoteAt: 45, windowPlayers: 200, windowDays: 30 }, // algorithmic store shelves from the server (ids)
   running: null, // { gameId } while a game is open
@@ -37,6 +38,7 @@ export async function loadCatalog() {
   state.games = c.games;
   state.byId = new Map(c.games.map((g) => [g.id, g]));
   state.tags = c.tags;
+  state.tools = c.tools ?? [];
   state.shelves = c.shelves ?? {};
   if (c.discovery) state.discovery = c.discovery;
   emit();

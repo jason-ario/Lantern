@@ -1,4 +1,4 @@
-// Automated playtest for Nightpaw: drives real keyboard input through the Lantern
+// Automated playtest for Nightpaw: drives real keyboard input through the Vibe-Games
 // runtime and checks that every ability gate, room link, save and the boss work.
 //   node scripts/qa-nightpaw.mjs [baseUrl] [shotDir]
 import { chromium } from 'playwright';
@@ -15,7 +15,7 @@ const p = await b.newPage({ viewport: { width: 1280, height: 760 } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(e.message));
 p.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|TUNNEL|ERR_/.test(m.text())) errs.push(m.text()); });
-const api = (m, path, d) => p.request.fetch(BASE + path, { method: m, headers: { 'X-Lantern-Client': 'platform', 'Content-Type': 'application/json' }, data: d }).then((r) => r.json());
+const api = (m, path, d) => p.request.fetch(BASE + path, { method: m, headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data: d }).then((r) => r.json());
 const wait = (ms) => p.waitForTimeout(ms);
 let f;
 const st = () => f.evaluate(() => window.__nightpaw.state());
@@ -192,7 +192,7 @@ await tp(135 + 36, -34 + 14); await settle(); await wait(300);
 const beforeQuit = await st();
 await quit();
 const save = await api('GET', '/api/games/nightpaw/saves/save');
-check('Progress saved to Lantern on quit', save?.value?.has?.dash === true && save.value.visited.length >= 6, `visited ${save?.value?.visited?.length}`);
+check('Progress saved to Vibe-Games on quit', save?.value?.has?.dash === true && save.value.visited.length >= 6, `visited ${save?.value?.visited?.length}`);
 // QA: give the test bot extra lives for the boss fight (written through the same save API the SDK uses)
 await api('PUT', '/api/games/nightpaw/saves/save', { value: { ...save.value, maxHp: 40, hp: 40 } });
 await launch();

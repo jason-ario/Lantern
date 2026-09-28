@@ -1,12 +1,12 @@
-// Lantern service worker: keeps the platform itself (app shell + your library
+// Vibe-Games service worker: keeps the platform itself (app shell + your library
 // data) available offline. Game files are NOT served from here — sandboxed game
 // frames can't be controlled by a service worker — they live in the verified,
 // content-addressed package cache (js/offline/packages.js) and are handed to the
 // runtime directly.
 const VERSION = '__SW_VERSION__';
-const SHELL = `lantern-shell-${VERSION}`;
-const API = 'lantern-api-v1';
-const FONTS = 'lantern-fonts-v1';
+const SHELL = `vibe-shell-${VERSION}`;
+const API = 'vibe-api-v1';
+const FONTS = 'vibe-fonts-v1';
 const PRECACHE = __PRECACHE__;
 
 // API reads that are useful offline (network first, cached copy when offline).
@@ -18,7 +18,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k.startsWith('lantern-shell-') && k !== SHELL) await caches.delete(k);
+    for (const k of await caches.keys()) if ((k.startsWith('vibe-shell-') && k !== SHELL) || /^lantern-(shell|api|fonts)/.test(k)) await caches.delete(k);
     await self.clients.claim();
   })());
 });
@@ -39,7 +39,7 @@ async function networkFirst(req, cacheName, ms) {
     const hit = await cache.match(req);
     if (!hit) throw new Error('offline');
     const headers = new Headers(hit.headers);
-    headers.set('X-Lantern-Offline', '1');
+    headers.set('X-Vibe-Offline', '1');
     return new Response(await hit.blob(), { status: hit.status, headers });
   }
 }

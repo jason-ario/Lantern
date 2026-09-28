@@ -1,9 +1,9 @@
 /*!
- * Lantern Platform SDK v1
+ * Vibe-Games Platform SDK v1
  * Include in your game:  <script src="/sdk/v1/platform-sdk.js"></script>
  *
  * The game never talks to servers, storage or the platform UI directly.
- * Every call is an async RPC over a private MessageChannel to the Lantern
+ * Every call is an async RPC over a private MessageChannel to the Vibe-Games
  * runtime host, which validates it and decides how to fulfil it
  * (web: platform API; desktop: local cache + cloud sync). Same game code, both.
  *
@@ -44,7 +44,7 @@
   var tries = 0;
   function hello() {
     if (port || tries++ > 100) { clearInterval(helloTimer); return; }
-    window.parent.postMessage({ type: 'lantern:hello', protocol: PROTOCOL }, '*');
+    window.parent.postMessage({ type: 'vibe:hello', protocol: PROTOCOL }, '*');
   }
   var helloTimer = setInterval(hello, 150);
   hello();
@@ -52,7 +52,7 @@
   window.addEventListener('message', function (e) {
     if (e.source !== window.parent) return;
     var d = e.data;
-    if (!d || d.type !== 'lantern:init' || !e.ports || !e.ports[0]) return;
+    if (!d || d.type !== 'vibe:init' || !e.ports || !e.ports[0]) return;
     if (port) port.close();
     port = e.ports[0];
     port.onmessage = onPortMessage;
@@ -87,10 +87,10 @@
   window.addEventListener('error', function (e) { reportError(e && e.message); });
   window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; reportError(r && r.message ? r.message : r); });
 
-  function safe(fn) { try { return fn(); } catch (err) { console.error('[Lantern SDK] handler error', err); } }
+  function safe(fn) { try { return fn(); } catch (err) { console.error('[Vibe-Games SDK] handler error', err); } }
 
   function runExitHandlers() {
-    var work = Promise.all(handlers.exit.map(function (h) { return Promise.resolve().then(h).catch(function (err) { console.error('[Lantern SDK] onExit handler failed', err); }); }));
+    var work = Promise.all(handlers.exit.map(function (h) { return Promise.resolve().then(h).catch(function (err) { console.error('[Vibe-Games SDK] onExit handler failed', err); }); }));
     var timeout = new Promise(function (r) { setTimeout(r, 1500); });
     Promise.race([work, timeout]).then(function () { port && port.postMessage({ event: 'exit-ready' }); });
   }

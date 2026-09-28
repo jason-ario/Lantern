@@ -1,22 +1,22 @@
-# Deploying Lantern
+# Deploying Vibe-Games
 
-Lantern is one Node process with no dependencies. It needs **Node 22+** and, if you want data to survive restarts, **one persistent folder** (`DATA_DIR`).
+Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, if you want data to survive restarts, **one persistent folder** (`DATA_DIR`).
 
 ## Environment variables
 
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `5173` | Port to listen on. Hosts like Render set this for you. |
-| `PUBLIC_URL` | derived | The site's public address, e.g. `https://lantern.onrender.com`. Needed for Stripe and Google redirects and for the separate games domain. |
+| `PUBLIC_URL` | derived | The site's public address, e.g. `https://vibe-games.com`. Needed for Stripe and Google redirects and for the separate games domain. |
 | `ADMIN_PASSWORD` | *(none)* | Creator password. It unlocks **Publish**, **Publish update** and **Reset entire site**. On a real host, publishing is **disabled** until you set it. |
 | `DATA_DIR` | `./data` | Where everything the server writes lives: `db.json`, uploaded builds, uploaded images and the signing key. Point it at your persistent disk. |
 | `PACKAGE_SIGNING_KEY` | generated | ECDSA P-256 private key that signs every game build. Create one with `npm run gen:signing-key` and keep it **stable**: players' browsers pin the matching public key. If it's unset, a key is generated into `DATA_DIR/keys`, which is fine only if `DATA_DIR` is persistent. |
-| `STRIPE_SECRET_KEY` | *(none)* | Turns on real payments with Stripe Checkout. Use a test key (`sk_test_…`) first. When unset, the fake "Lantern Wallet" is used. |
+| `STRIPE_SECRET_KEY` | *(none)* | Turns on real payments with Stripe Checkout. Use a test key (`sk_test_…`) first. When unset, the fake "Vibe Wallet" is used. |
 | `STRIPE_WEBHOOK_SECRET` | *(none)* | Signing secret (`whsec_…`) for the webhook endpoint `PUBLIC_URL/api/stripe/webhook`. |
 | `CURRENCY` | `usd` | Checkout currency. |
 | `CREATOR_SHARE` | `0.9` | The creators' share of each sale, shown in the creator guide and on the Publish page. `0.9` means a 90/10 split. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(none)* | Enable "Continue with Google". |
-| `GAMES_ORIGIN` | *(none)* | Serve untrusted game files from a separate domain, e.g. `https://play.lanterngames.net`. Requires `PUBLIC_URL`. |
+| `GAMES_ORIGIN` | *(none)* | Serve untrusted game files from a separate domain, e.g. `https://play.vibe-games.net`. Requires `PUBLIC_URL`. |
 | `NODE_ENV` | — | Set `production` on a host. This also happens automatically on Render. |
 | `ACCOUNT_MODE` | `guest` | `guest`: every browser gets a guest account and can upgrade it to a real one. `single`: the old shared demo account. |
 | `TRUST_PROXY` | on in production | Reads `X-Forwarded-*` from the host's proxy, so HTTPS, secure cookies and rate limits work correctly. |
@@ -90,7 +90,7 @@ What players see:
    - `PACKAGE_SIGNING_KEY`: the output of `npm run gen:signing-key`.
 4. Click **Deploy**. Your site is live at `https://<name>.onrender.com`.
 
-Free instances have no persistent disk. Accounts, purchases, saves and published games reset whenever the service restarts, redeploys or falls asleep. That's fine for showing Lantern to people.
+Free instances have no persistent disk. Accounts, purchases, saves and published games reset whenever the service restarts, redeploys or falls asleep. That's fine for showing Vibe-Games to people.
 
 ## Render: persistent (paid instance + disk)
 
@@ -105,11 +105,20 @@ Option B, a manual Web Service. Use the settings above, then:
 2. Under **Advanced → Disk**, add a disk with mount path `/var/data`.
 3. Add the environment variable `DATA_DIR=/var/data`.
 
+> **Coming from the Lantern blueprint?** `render.yaml` now names the service `vibe-games` and the disk `vibe-games-data`. Syncing an existing Blueprint with those names creates a *new* service and an empty disk. To keep your data, either rename the existing service in the Render dashboard, or change those two names in `render.yaml` back to `lantern` / `lantern-data` before syncing.
+
+## Custom domain: vibe-games.com
+
+1. In Render → your service → **Settings → Custom Domains**, add `vibe-games.com` and `www.vibe-games.com`.
+2. At your registrar, add the DNS records Render shows (an `A`/`ALIAS` record for the apex, a `CNAME` for `www`). Render issues the TLS certificate automatically.
+3. Set `PUBLIC_URL=https://vibe-games.com` and redeploy. Update Stripe's webhook URL and Google's OAuth redirect URI to the new domain too.
+4. Optional, recommended for production: serve game files from a separate domain, e.g. `play.vibe-games.net`, pointed at the same service, and set `GAMES_ORIGIN=https://play.vibe-games.net`. A different registrable domain keeps untrusted game code away from player sessions.
+
 ## Any container host (Fly.io, Railway, a VPS)
 
 ```bash
-docker build -t lantern .
-docker run -p 8080:8080 -e ADMIN_PASSWORD=change-me -v lantern-data:/data lantern
+docker build -t vibe-games .
+docker run -p 8080:8080 -e ADMIN_PASSWORD=change-me -v vibe-games-data:/data vibe-games
 ```
 
 Put it behind an HTTPS proxy such as Caddy or nginx, or use your host's built-in TLS.

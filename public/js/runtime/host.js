@@ -34,11 +34,11 @@ const EXIT_GRACE_MS = 2000;
 const VFS_BOOTSTRAP = String.raw`(() => {
   const P = window.parent;
   addEventListener('message', function once(e) {
-    if (e.source !== P || !e.data || e.data.type !== 'lantern:vfs') return;
+    if (e.source !== P || !e.data || e.data.type !== 'vibe:vfs') return;
     removeEventListener('message', once);
     boot(e.data);
   });
-  P.postMessage({ type: 'lantern:vfs-ready' }, '*');
+  P.postMessage({ type: 'vibe:vfs-ready' }, '*');
   function boot({ files, entry, sdk, nonce }) {
     const dirOf = (p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1) : '';
     const base = dirOf(entry);
@@ -76,7 +76,7 @@ const VFS_BOOTSTRAP = String.raw`(() => {
       if (src) {
         s.removeAttribute('src');
         if (/\/sdk\/v1\/platform-sdk\.js$/.test(src)) s.textContent = sdk;
-        else { const p = norm(src); s.textContent = p !== null && text.has(p) ? text.get(p) + '\n//# sourceURL=' + p : 'console.error("[Lantern] missing file: " + ' + JSON.stringify(src) + ')'; }
+        else { const p = norm(src); s.textContent = p !== null && text.has(p) ? text.get(p) + '\n//# sourceURL=' + p : 'console.error("[Vibe-Games] missing file: " + ' + JSON.stringify(src) + ')'; }
       }
       // inline script text must not close the <script> element when re-parsed
       s.textContent = s.textContent.replace(/<\/(script)/gi, '<\\/$1');
@@ -165,16 +165,16 @@ export class GameRuntime {
   onWindowMessage(e) {
     if (!this.frame || e.source !== this.frame.contentWindow) return; // only our frame
     const d = e.data;
-    if (d && d.type === 'lantern:vfs-ready' && this.launch.build.local && !this.vfsSent) {
+    if (d && d.type === 'vibe:vfs-ready' && this.launch.build.local && !this.vfsSent) {
       this.vfsSent = true;
       const { files, entry } = this.launch.build;
       loadSdk().then((sdk) => {
         const copies = files.map((x) => ({ path: x.path, type: x.type, buf: x.buf.slice(0) }));
-        this.frame?.contentWindow.postMessage({ type: 'lantern:vfs', files: copies, entry, sdk, nonce: this.nonce }, '*', copies.map((x) => x.buf));
+        this.frame?.contentWindow.postMessage({ type: 'vibe:vfs', files: copies, entry, sdk, nonce: this.nonce }, '*', copies.map((x) => x.buf));
       });
       return;
     }
-    if (!d || d.type !== 'lantern:hello') return;
+    if (!d || d.type !== 'vibe:hello') return;
     if (d.protocol !== 1) { console.warn('[runtime] unsupported SDK protocol', d.protocol); return; }
     this.port?.close();
     const ch = new MessageChannel();
@@ -182,11 +182,11 @@ export class GameRuntime {
     this.port.onmessage = (ev) => this.onPortMessage(ev.data);
     const context = Object.freeze({
       gameId: this.gameId, gameTitle: this.launch.game.title, version: this.launch.build.version,
-      mode: this.launch.session.mode, sdk: '1.0.0', runtime: 'lantern-web/1.0', locale: navigator.language,
+      mode: this.launch.session.mode, sdk: '1.0.0', runtime: 'vibe-games-web/1.0', locale: navigator.language,
     });
     // Target '*' is required: the sandboxed frame has an opaque origin. The port
     // itself is only transferable to that exact window, so nothing else receives it.
-    this.frame.contentWindow.postMessage({ type: 'lantern:init', protocol: 1, context }, '*', [ch.port2]);
+    this.frame.contentWindow.postMessage({ type: 'vibe:init', protocol: 1, context }, '*', [ch.port2]);
     this.health.connected = true;
     this.cb.onConnected?.();
   }

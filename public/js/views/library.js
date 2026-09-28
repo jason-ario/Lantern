@@ -55,7 +55,7 @@ export async function render(root, [id]) {
 
 function renderHome(main, entries, recent) {
   if (!entries.length) {
-    main.innerHTML = `<div class="empty-state"><h2>Your library is empty</h2><p>Games you buy live here forever — and launch instantly.</p><a class="btn btn-buy" href="/store" data-link>Browse the Store</a></div>`;
+    main.innerHTML = `<div class="empty-state"><h2>Your library is waiting</h2><p>Games you buy live here forever and launch in about a second.</p><a class="btn btn-buy" href="/store" data-link>Browse the Store</a></div>`;
     return null;
   }
   const total = entries.reduce((t, e) => t + e.playtimeSeconds, 0);

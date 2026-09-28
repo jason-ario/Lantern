@@ -1,8 +1,8 @@
-# Render Blueprint — one web service with a persistent disk for all Lantern data.
+# Render Blueprint — one web service with a persistent disk for all Vibe-Games data.
 # Render → New → Blueprint → pick this repo. You'll be asked for ADMIN_PASSWORD.
 services:
   - type: web
-    name: lantern
+    name: vibe-games
     runtime: node
     plan: starter            # a paid instance is required for a persistent disk
     buildCommand: npm install
@@ -15,13 +15,13 @@ services:
         value: /var/data
       - key: ADMIN_PASSWORD
         sync: false          # prompted on creation; never committed to git
-      - key: PUBLIC_URL      # e.g. https://lantern.onrender.com (needed for Stripe/Google redirects)
+      - key: PUBLIC_URL      # e.g. https://vibe-games.com (needed for Stripe/Google redirects)
         sync: false
       - key: PACKAGE_SIGNING_KEY   # npm run gen:signing-key — keep stable
         sync: false
       # Optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID,
       # GOOGLE_CLIENT_SECRET, GAMES_ORIGIN — see DEPLOY.md
     disk:
-      name: lantern-data
+      name: vibe-games-data
       mountPath: /var/data
       sizeGB: 1

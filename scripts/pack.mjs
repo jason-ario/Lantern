@@ -1,4 +1,4 @@
-// Packs a game folder into a Lantern-ready .zip (manifest.json + index.html at the zip root).
+// Packs a game folder into a Vibe-Games-ready .zip (manifest.json + index.html at the zip root).
 //   node scripts/pack.mjs <gameFolder> [out.zip]
 import fs from 'node:fs';
 import path from 'node:path';

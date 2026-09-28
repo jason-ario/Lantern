@@ -2,10 +2,10 @@
 // Algorithmic curation. No human review: every released game is scored from how
 // players actually behave, and the store's shelves are built from those scores.
 //
-//   1. Discovery window  - a new game is shown on the "New on Lantern" shelf until
+//   1. Discovery window  - a new game is shown on the "Fresh off the prompt" shelf until
 //                          it has had RANK.windowPlayers players (or windowDays pass),
 //                          so every game gets a fair first audience.
-//   2. Lantern Score     - hook (share playing 15+ min), engagement (median minutes),
+//   2. Vibe Score     - hook (share playing 15+ min), engagement (median minutes),
 //                          retention (came back on a 2nd day), conversion (demo -> buy,
 //                          or claim -> play for free games) and reach (recent players).
 //                          Rates are Bayesian-smoothed towards a neutral prior, so a

@@ -14,6 +14,7 @@ import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, G
 import { hashPassword, verifyPassword, EMAIL_RE, uniqueUsername, mergeUsers, googleEnabled, googleStartUrl, googleFinish } from './auth.js';
 import { stripeEnabled, createCheckoutSession, retrieveCheckoutSession, verifyWebhook } from './payments.js';
 import { signBuild, currentKeyId, publicKey } from './signing.js';
+import { cleanVibe } from '../public/js/vibe.js';
 
 export { USER_MEDIA_DIR };
 const MAX_SAVE_BYTES = 256 * 1024;
@@ -39,8 +40,8 @@ setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (no
 // Guest accounts: the first visit from a browser creates a guest user. The
 // session token lives in an HttpOnly, SameSite=Strict cookie scoped to /api, so
 // neither platform JS nor game code can read it. (Real sign-in comes later.)
-const ADJ = ['Amber', 'Quiet', 'Lucky', 'Velvet', 'Ember', 'Misty', 'Brave', 'Hollow', 'Silver', 'Crimson', 'Mossy', 'Starlit', 'Wandering', 'Sleepy', 'Clever', 'Midnight'];
-const NOUN = ['Moth', 'Heron', 'Fox', 'Lantern', 'Otter', 'Raven', 'Comet', 'Wisp', 'Badger', 'Kestrel', 'Sparrow', 'Tide', 'Pine', 'Owl', 'Cat', 'Ember'];
+const ADJ = ['Neon', 'Cosmic', 'Chill', 'Glitchy', 'Turbo', 'Lucky', 'Velvet', 'Midnight', 'Electric', 'Sunny', 'Hyper', 'Sleepy', 'Clever', 'Retro', 'Dreamy', 'Starlit'];
+const NOUN = ['Prompt', 'Sprite', 'Pixel', 'Comet', 'Otter', 'Fox', 'Byte', 'Wizard', 'Cat', 'Robot', 'Moth', 'Synth', 'Rocket', 'Owl', 'Glitch', 'Wave'];
 function createGuest() {
   const n = crypto.randomInt(ADJ.length * NOUN.length);
   return db.insert('users', {
@@ -51,10 +52,19 @@ function createGuest() {
 }
 
 export function authenticate(req, res, ctx) {
-  const sid = /(?:^|;\s*)lantern_sid=([a-f0-9]{48})/.exec(req.headers.cookie ?? '')?.[1];
-  const sess = sid && db.find('authSessions', (s) => s.id === sid);
+  const cookie = req.headers.cookie ?? '';
+  const sid = /(?:^|;\s*)vibe_sid=([a-f0-9]{48})/.exec(cookie)?.[1];
+  // Pre-rebrand sessions (Lantern) used a different cookie name; carry them over once.
+  const legacySid = !sid && /(?:^|;\s*)lantern_sid=([a-f0-9]{48})/.exec(cookie)?.[1];
+  const sess = (sid || legacySid) && db.find('authSessions', (s) => s.id === (sid || legacySid));
   const existing = sess && db.get('users', sess.userId);
-  if (existing) return { user: existing, session: sess };
+  if (existing) {
+    if (legacySid) res.setHeader('Set-Cookie', [
+      `vibe_sid=${legacySid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`,
+      `lantern_sid=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${ctx.secure ? '; Secure' : ''}`,
+    ]);
+    return { user: existing, session: sess };
+  }
   let user;
   if (ACCOUNT_MODE === 'single') {
     user = db.get('users', DEFAULT_USER_ID);
@@ -65,18 +75,18 @@ export function authenticate(req, res, ctx) {
   }
   const newSid = crypto.randomBytes(24).toString('hex');
   const session = db.insert('authSessions', { id: newSid, userId: user.id, admin: false, createdAt: db.now() });
-  res.setHeader('Set-Cookie', `lantern_sid=${newSid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `vibe_sid=${newSid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
   return { user, session };
 }
 
 function startSession(res, userId, ctx) {
   const sid = crypto.randomBytes(24).toString('hex');
   const session = db.insert('authSessions', { id: sid, userId, admin: false, createdAt: db.now() });
-  res.setHeader('Set-Cookie', `lantern_sid=${sid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `vibe_sid=${sid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
   return session;
 }
 function clearSessionCookie(res, ctx) {
-  res.setHeader('Set-Cookie', `lantern_sid=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${ctx.secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `vibe_sid=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${ctx.secure ? '; Secure' : ''}`);
 }
 const baseUrl = (ctx) => PUBLIC_URL || ctx.origin;
 
@@ -88,6 +98,8 @@ function requireAdmin(session) {
 
 // ---------------- helpers ----------------
 const owns = (userId, gameId) => !!db.find('ownerships', (o) => o.userId === userId && o.gameId === gameId);
+// NB: the 'lantern-*' salts below predate the rebrand. Changing them would change every
+// player's per-game id and every ranking fingerprint, so they stay as they are.
 const scopedPlayerId = (userId, gameId) => `p_${crypto.createHash('sha256').update(`${userId}:${gameId}:lantern-pepper`).digest('hex').slice(0, 16)}`;
 
 function requireGame(id) {
@@ -106,6 +118,7 @@ function publicGame(g) {
     priceCents: g.priceCents, tags: g.tags, features: g.features, shortDescription: g.shortDescription,
     description: g.description, releaseDate: g.releaseDate, status: g.status, rating: g.rating, stats: g.stats,
     featured: g.featured, demo: g.demo, logo: g.logo, media: g.media, blurb: g.blurb, source: g.source,
+    builtWith: g.builtWith ?? [], vibe: g.vibe ?? null,
     achievementCount: db.filter('achievements', (a) => a.gameId === g.id).length,
     version: ver ? {
       version: ver.version, sizeBytes: ver.sizeBytes, fileCount: ver.files.length, buildHash: ver.buildHash,
@@ -145,8 +158,16 @@ route('GET', '/api/catalog', () => {
   const games = db.all('games').map(publicGame);
   const { shelves, thresholds } = rankings();
   const counts = {};
-  games.forEach((g) => g.tags.forEach((t) => { counts[t] = (counts[t] ?? 0) + 1; }));
-  return { games, shelves, discovery: thresholds, tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })) };
+  const toolCounts = {};
+  games.forEach((g) => {
+    g.tags.forEach((t) => { counts[t] = (counts[t] ?? 0) + 1; });
+    g.builtWith.forEach((t) => { toolCounts[t] = (toolCounts[t] ?? 0) + 1; });
+  });
+  return {
+    games, shelves, discovery: thresholds,
+    tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
+    tools: Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([id, count]) => ({ id, count })),
+  };
 });
 
 route('GET', '/api/games/:id', ({ user, session, params }) => {
@@ -349,6 +370,8 @@ route('POST', '/api/publish', ({ user, session, body }) => {
   const tags = (Array.isArray(body.tags) ? body.tags : []).map((t) => String(t).trim()).filter(Boolean).slice(0, 8);
   const version = String(body.version ?? '1.0.0');
   if (!/^\d+\.\d+\.\d+$/.test(version)) fail(400, 'Version must look like 1.0.0');
+  let vibeInfo;
+  try { vibeInfo = cleanVibe(body.builtWith, body.vibe); } catch (e) { fail(400, e.message); }
   const pkg = body.package ?? fail(400, 'A game package is required');
   let report;
   try { report = inspectPackage(pkg.filename ?? 'package.zip', decodeB64(pkg.dataBase64, 50e6)); }
@@ -379,12 +402,12 @@ route('POST', '/api/publish', ({ user, session, body }) => {
   const game = db.insert('games', {
     id: gameId, title, developerId: dev.id, priceCents, tags: tags.length ? tags : ['Indie'],
     features: ['Single-player', 'Instant Play', ...(report.usesSdk ? ['Cloud Saves'] : []), ...((manifest.achievements ?? []).length ? ['Achievements'] : [])],
-    shortDescription: String(body.shortDescription ?? '').slice(0, 300) || `${title} — a new game on Lantern.`,
+    shortDescription: String(body.shortDescription ?? '').slice(0, 300) || `${title}: freshly vibe-coded and live on Vibe-Games.`,
     description: String(body.description ?? '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).slice(0, 12),
     releaseDate: db.now().slice(0, 10), status: 'released', rating: null, stats: { sales: 0, trend: 100 },
     featured: false, demo: body.demo ? { minutes: 5 } : null,
     logo: { font: 'Barlow Condensed', weight: 700, color: '#ffffff', case: 'upper', spacing: '.06em' },
-    media: { cover, header, hero, screenshots: shots }, blurb: 'New on Lantern', currentVersionId: null,
+    media: { cover, header, hero, screenshots: shots }, blurb: 'Fresh off the prompt', currentVersionId: null,
     source: 'published', publishedBy: user.id, createdAt: db.now(),
   });
   const ver = createVersion({ gameId, pkgDir: gameId, pkgVersion: version, notes: String(body.releaseNotes ?? 'Initial release.') });
@@ -583,7 +606,7 @@ route('POST', '/api/games/:id/checkout', async ({ user, session, params, ctx }) 
     fulfillOrder(order);
     return { status: 'paid', order: publicOrder(order), state: userState(user, session) };
   }
-  if (!stripeEnabled()) return { status: 'mock' }; // client shows the Lantern Wallet (fake) checkout
+  if (!stripeEnabled()) return { status: 'mock' }; // client shows the Vibe Wallet (fake) checkout
   if (user.guest) fail(401, 'Create an account or sign in to buy — purchases are tied to your account');
   limit(`checkout:${user.id}`, 20, 10 * 60e3);
   const order = db.insert('orders', { id: db.id('ord'), userId: user.id, gameId: g.id, amountCents: g.priceCents, currency: CURRENCY, provider: 'stripe', status: 'pending', providerRef: null, createdAt: db.now(), paidAt: null });

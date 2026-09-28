@@ -28,7 +28,7 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
         current = m;
         el.querySelectorAll('.auth-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === m));
         el.querySelectorAll('[data-only]').forEach((x) => { x.style.display = x.dataset.only === m ? '' : 'none'; });
-        el.querySelector('#authTitle').textContent = m === 'signup' ? 'Create your Lantern account' : 'Welcome back';
+        el.querySelector('#authTitle').textContent = m === 'signup' ? 'Create your Vibe-Games account' : 'Welcome back';
         el.querySelector('#authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
         f.elements.password.autocomplete = m === 'signup' ? 'new-password' : 'current-password';
         el.querySelector('#authNote').textContent = state.user?.guest && state.owned.size
@@ -50,7 +50,7 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
           navigator.serviceWorker?.controller?.postMessage({ type: 'clear-api-cache' });
           await loadCatalog();
           close();
-          toast(current === 'signup' ? `Welcome to Lantern, <b>${esc(s.user.displayName)}</b>` : `Signed in as <b>${esc(s.user.displayName)}</b>`, { kind: 'ok' });
+          toast(current === 'signup' ? `Welcome to Vibe-Games, <b>${esc(s.user.displayName)}</b>` : `Signed in as <b>${esc(s.user.displayName)}</b>`, { kind: 'ok' });
           onDone?.(s);
         } catch (err) {
           btn.disabled = false;

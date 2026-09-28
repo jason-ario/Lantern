@@ -1,5 +1,6 @@
 // Small UI toolkit: escaping, formatting and shared game "capsule" components.
 import { state } from './state.js';
+import { TOOL_BY_ID, buildTime } from './vibe.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -63,11 +64,24 @@ export function rankBadges(g, max = 2) {
 }
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n)));
 
+// "Built with" chips for the AI tools a game was vibe-coded with.
+export function vibeChips(ids, { max = 3, link = false, size = '' } = {}) {
+  const list = (ids ?? []).map((id) => TOOL_BY_ID.get(id)).filter(Boolean);
+  const shown = list.slice(0, max).map((t) => (link
+    ? `<a class="vibe-chip ${size}" style="--c:${t.color}" href="/search?tool=${encodeURIComponent(t.id)}" data-link>${esc(t.name)}</a>`
+    : `<span class="vibe-chip ${size}" style="--c:${t.color}">${esc(t.name)}</span>`));
+  if (list.length > max) shown.push(`<span class="vibe-chip ${size}" style="--c:var(--text-3)">+${list.length - max}</span>`);
+  return shown.length ? `<span class="vibe-chips">${shown.join('')}</span>` : '';
+}
+export const vibeTime = (g) => buildTime(g.vibe?.hours);
+
 export function capsule(g, { size = 'md', showPrice = true, badge = true } = {}) {
   const demo = g.demo && !state.owned.has(g.id) && badge ? '<span class="badge-demo">▶ Instant demo</span>' : '';
+  const t = vibeTime(g);
   return `<a class="capsule capsule-${size}" href="/app/${esc(g.id)}" data-link>
     <div class="art" style="background-image:url('${esc(g.media.header)}')">${logo(g, size === 'lg' ? 'lg' : 'sm')}${demo}${badge && g.rank?.badges?.length ? `<span class="art-badges">${rankBadges(g, 1)}</span>` : ''}</div>
     <div class="meta"><div class="t">${esc(g.title)}</div>${showPrice ? priceTag(g, { compact: true }) : ''}</div>
+    ${g.builtWith?.length || t ? `<div class="meta-vibe">${vibeChips(g.builtWith, { max: 2, size: 'sm' })}${t ? `<span title="Time to build">⏱ ${esc(t)}</span>` : ''}</div>` : ''}
   </a>`;
 }
 

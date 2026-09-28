@@ -54,7 +54,7 @@ export function validateManifest(m) {
   if (typeof m.name !== 'string' || !m.name.trim()) errors.push('manifest.name is required');
   if (!VERSION_RE.test(m.version ?? '')) errors.push('manifest.version must look like 1.0.0');
   if (typeof m.entry !== 'string' || !SAFE_PATH.test(m.entry) || m.entry.includes('..')) errors.push('manifest.entry must be a relative path such as index.html');
-  if (String(m.sdk ?? '') !== '1') errors.push('manifest.sdk must be "1" (Lantern SDK v1)');
+  if (String(m.sdk ?? '') !== '1') errors.push('manifest.sdk must be "1" (Vibe-Games SDK v1)');
   if (m.achievements && !Array.isArray(m.achievements)) errors.push('manifest.achievements must be an array');
   for (const a of m.achievements ?? []) {
     if (!/^[a-z0-9_]{1,40}$/.test(a.id ?? '')) errors.push(`achievement id "${a.id}" must be lowercase snake_case`);

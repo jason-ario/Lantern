@@ -1,5 +1,5 @@
-// VOIDRUNNER — tiny neon arcade shooter for the Lantern runtime.
-// All persistence goes through the Lantern Platform SDK (window.Platform).
+// VOIDRUNNER — tiny neon arcade shooter for the Vibe-Games runtime.
+// All persistence goes through the Vibe-Games Platform SDK (window.Platform).
 (() => {
   'use strict';
   const cv = document.getElementById('c');
@@ -364,7 +364,7 @@
     text('VOIDRUNNER', cx, ty, Math.min(86 * U, W / 8), hsl(320, 100, 66), 'center', 900, 10 * U);
     ctx.globalCompositeOperation = 'source-over';
     text('A NINEFOLD ARCADE', cx, ty + 60 * U, 12 * U, 'rgba(255,255,255,.6)', 'center', 700, 6);
-    if (state === 'loading') { text('CONNECTING TO LANTERN…', cx, H * 0.6, 12 * U, '#aaa', 'center', 600, 3); return; }
+    if (state === 'loading') { text('CONNECTING TO VIBE-GAMES…', cx, H * 0.6, 12 * U, '#aaa', 'center', 600, 3); return; }
     text(`BEST ${progress.bestScore.toLocaleString()}   ·   FURTHEST SECTOR ${progress.furthestSector}   ·   RUNS ${progress.runs}`, cx, ty + 96 * U, 12 * U, hsl(190, 100, 75), 'center', 700, 2);
     const bw = Math.min(W - 40, 520 * U), bh = 46 * U;
     menu.forEach((m, i) => {

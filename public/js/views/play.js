@@ -8,7 +8,7 @@ import { esc, logo, bytes, icons, toast, hours, price, $ } from '../ui.js';
 import { go, previousPath } from '../nav.js';
 import { openCheckout } from './checkout.js';
 
-export const autoDownload = () => { try { return localStorage.getItem('lantern.autoDownload') !== '0'; } catch { return true; } };
+export const autoDownload = () => { try { return localStorage.getItem('vibe.autoDownload') !== '0'; } catch { return true; } };
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export async function render(root, [id], query) {
@@ -26,7 +26,7 @@ export async function render(root, [id], query) {
     <div class="rt-bar">
       <button class="rt-btn rt-quit" id="rtQuit" title="Save and quit">${icons.close}<span>Quit</span></button>
       <div class="rt-title">
-        <span class="rt-brand">LANTERN</span><span class="rt-sep"></span>
+        <span class="rt-brand">VIBE-GAMES</span><span class="rt-sep"></span>
         <b>${esc(g.title)}</b><span class="rt-ver" id="rtVer"></span><span class="rt-src" id="rtSrc"></span>
         ${mode === 'demo' ? '<span class="rt-demo" id="rtDemo">DEMO</span>' : ''}
       </div>
@@ -56,7 +56,7 @@ export async function render(root, [id], query) {
   const setSave = (html, cls = '') => { const el = $('#rtSave', root); el.className = `rt-save ${cls}`; el.innerHTML = `${icons.cloud}<span>${html}</span>`; };
 
   const note = (t) => { const el = $('#rtNote', root); if (el) el.textContent = t; };
-  const playerKey = `lantern.player.v1:${state.user?.id}:${id}`;
+  const playerKey = `vibe.player.v1:${state.user?.id}:${id}`;
 
   // 1) Installed for offline play? Bring it up to date (delta) and load the verified local copy.
   let local = null;
@@ -100,7 +100,7 @@ export async function render(root, [id], query) {
   $('#rtVer', root).textContent = `v${launch.build.version}`;
   $('#rtSrc', root).innerHTML = launch.build.local
     ? `<span class="rt-local" title="Running the signed, verified copy stored on this device">${icons.shield} Local · verified</span>${launch.session.offline ? '<span class="rt-offline">Offline</span>' : ''}`
-    : '<span class="rt-stream" title="Streaming from Lantern">Streaming</span>';
+    : '<span class="rt-stream" title="Streaming from Vibe-Games">Streaming</span>';
   $('#rtNote', root).textContent = `Build ${launch.build.buildHash.slice(0, 8)} · ${bytes(launch.build.sizeBytes)} · ${launch.build.fileCount} files`;
   if (launch.session.demoSeconds) demoLeft = launch.session.demoSeconds;
 
@@ -111,7 +111,7 @@ export async function render(root, [id], query) {
     if (closed) return;
     closed = true;
     runtime?.pause();
-    showVeil(`<div class="rt-closing"><div class="spinner lg"></div><div>Saving your progress…</div><small>Waiting for ${esc(g.title)} to sync with Lantern Cloud</small></div>`);
+    showVeil(`<div class="rt-closing"><div class="spinner lg"></div><div>Saving your progress…</div><small>Waiting for ${esc(g.title)} to sync with Vibe-Games Cloud</small></div>`);
     const played = runtime?.activeSeconds ?? 0;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     await runtime?.close();
@@ -149,7 +149,7 @@ export async function render(root, [id], query) {
         const wait = Math.max(0, 450 - (performance.now() - splashShownAt));
         setTimeout(() => { $('#rtSplash', root)?.classList.add('gone'); runtime.focus(); }, wait);
       },
-      onConnected() { setSave('Connected to Lantern Cloud', 'ok'); },
+      onConnected() { setSave('Connected to Vibe-Games Cloud', 'ok'); },
       onSaveState(s, at) {
         if (s === 'saving') setSave('Saving…', 'busy');
         else if (s === 'saved') setSave(`Saved ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`, 'ok');

@@ -1,4 +1,4 @@
-// Seed catalog: fictional developers and games. Only `voidrunner` and `tidewater`
+// Seed catalog: fictional developers and vibe-coded games. Only `voidrunner` and `tidewater`
 // ship real builds; released placeholder titles launch a shared placeholder build
 // so the full buy → library → play flow works for every released game.
 
@@ -58,7 +58,7 @@ export const games = [
     short: 'A neon arcade shooter about surviving the space between signals. Thread bullet storms, chain kills, and push deeper into the void one sector at a time.',
     description: [
       'Voidrunner is a tight, one-more-run arcade shooter built for short sessions and long obsessions. Pilot a courier ship through collapsing sectors of dead space, where every wave is faster, meaner and louder than the last.',
-      'Your furthest sector is remembered. Pick up where you left off, or start from Sector 1 and chase a clean high score. Every run feeds your personal best, synced to your Lantern account.',
+      'Your furthest sector is remembered. Pick up where you left off, or start from Sector 1 and chase a clean high score. Every run feeds your personal best, synced to your Vibe-Games account.',
       'Built entirely on the web platform, Voidrunner launches in under a second, with no installer and no loading screens.',
     ],
     features: ['Single-player', 'Cloud Saves', 'Achievements', 'Keyboard & Mouse', 'Touch Controls', 'Instant Play'],
@@ -74,7 +74,7 @@ export const games = [
     description: [
       'You inherit one rowboat, one net and a harbor nobody visits. Haul in the morning catch, buy your first skiff, and watch a quiet cove turn into a thriving port.',
       'Tidewater is a gentle incremental management game. Your fleet keeps working while you are gone, and the harbor you leave is exactly the harbor you come back to, down to the last coin.',
-      'Progress is saved automatically through Lantern Cloud Saves.',
+      'Progress is saved automatically through Vibe-Games Cloud Saves.',
     ],
     features: ['Single-player', 'Cloud Saves', 'Offline Progress', 'Achievements', 'Mouse & Touch', 'Instant Play'],
     releaseDate: '2026-08-21', status: 'released', rating: { pct: 91, count: 1564 }, stats: { sales: 28900, trend: 91 },
@@ -215,7 +215,7 @@ export const games = [
     tags: ['Exploration', 'Space', 'Co-op Planned', 'Sci-fi'],
     motif: 'space', palette: P.star, hud: 'strategy', logo: { font: 'Rajdhani', weight: 700, color: '#d8fbff', case: 'upper', spacing: '.3em' },
     short: 'Chart a galaxy that is still being born. Hand-map nebulae, name new stars and sell your charts to the highest bidder.',
-    description: ['Starfall Cartographers is an exploration game about making maps of places nobody has seen. Coming soon to Lantern.'],
+    description: ['Starfall Cartographers is an exploration game about making maps of places nobody has seen. Coming soon to Vibe-Games.'],
     features: ['Single-player', 'Cloud Saves', 'Achievements'],
     releaseDate: '2026-11-14', status: 'coming_soon', rating: null, stats: { sales: 0, trend: 77 },
     featured: false, demo: null, package: null, blurb: 'Coming November 14',
@@ -241,6 +241,28 @@ export const games = [
     featured: false, demo: null, package: null, blurb: 'Coming October 30',
   },
 ];
+
+// How each seed game was vibe-coded: the tools it was built with, the prompt
+// that started it and roughly how long it took. All fictional demo data.
+const VIBES = {
+  nightpaw: { builtWith: ['claude-code', 'cursor'], vibe: { hours: 96, prompt: 'A tiny black cat with a red scarf goes down a well to find the girl who owns him. Metroidvania, storybook cutscenes, sad but cosy. Make the cat feel amazing to control first.' } },
+  voidrunner: { builtWith: ['claude-code'], vibe: { hours: 9, prompt: 'Neon arcade shooter, pink and cyan, one more run energy. It should launch in under a second and remember how far I got.' } },
+  tidewater: { builtWith: ['claude', 'cursor'], vibe: { hours: 14, prompt: 'Cozy idle game about a fishing harbor. Numbers go up, a lighthouse, and a nice "while you were away" screen when I come back.' } },
+  'hollow-lantern': { builtWith: ['cursor', 'claude'], vibe: { hours: 420, prompt: 'Hand-drawn metroidvania in a drowned cathedral. Your only light burns memories as fuel. Every upgrade should cost you something.' } },
+  driftglass: { builtWith: ['chatgpt', 'copilot'], vibe: { hours: 160, prompt: 'Puzzle game about bending light through glass. No text, no timers, no hurry. Generate 180 levels, then help me throw away the boring ones.' } },
+  kepler: { builtWith: ['claude-code', 'codex'], vibe: { hours: 210, prompt: 'A 4X I can finish in one evening. The star is dying, the fleet is small, every choice should hurt a little.' } },
+  ashfall: { builtWith: ['windsurf', 'claude'], vibe: { hours: 75, prompt: 'Survival roguelite in a world where the sky has been on fire for eleven years. Each expedition rewrites the map.' } },
+  'night-market': { builtWith: ['claude', 'cursor'], vibe: { hours: 130, prompt: 'Cyberpunk detective game where you never leave your noodle stand. Every customer knows something about the missing courier.' } },
+  pinewatch: { builtWith: ['gemini', 'cursor'], vibe: { hours: 40, prompt: 'Seven nights in a fire lookout tower. Something in the trees keeps a schedule. Make it scary with sound, not jump scares.' } },
+  'cold-summit': { builtWith: ['copilot'], vibe: { hours: 55, prompt: 'Precision climbing platformer. One mountain, one rope, 600 screens. Tight controls first, the story can wait.' } },
+  hearthfield: { builtWith: ['chatgpt', 'lovable'], vibe: { hours: 300, prompt: 'Farming sim where you restore your grandmother\'s valley farm and the villagers slowly tell you who she was.' } },
+  ironbark: { builtWith: ['claude-code', 'gemini'], vibe: { hours: 180, prompt: 'Grid tactics about a mercenary company on a dry frontier. Terrain, weather and loyalty all matter. Soldiers remember who left them behind.' } },
+  'pocket-orbit': { builtWith: ['bolt'], vibe: { hours: 3.5, prompt: 'One-thumb game: slingshot a tiny satellite around tiny planets. Add a daily seed so my friends and I can compete.' } },
+  starfall: { builtWith: ['claude-code', 'v0'], vibe: { hours: 140, prompt: 'Exploration game about mapping a galaxy that is still forming. You draw the charts yourself and sell them.' } },
+  undertow: { builtWith: ['cursor', 'replit'], vibe: { hours: 60, prompt: 'Deep-sea salvage horror. The radio goes quiet at 4,000 metres. From the Pinewatch team, same slow dread.' } },
+  glyphbound: { builtWith: ['claude', 'windsurf'], vibe: { hours: 110, prompt: 'Roguelike deckbuilder where the cards are words, and putting words together writes brand new spells.' } },
+};
+for (const g of games) Object.assign(g, VIBES[g.id] ?? { builtWith: [], vibe: null });
 
 // Placeholder achievements for titles without real builds.
 export const placeholderAchievements = [

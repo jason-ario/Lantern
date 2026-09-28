@@ -1,4 +1,4 @@
-// Firefly Jar: a tiny Lantern starter game.
+// Firefly Jar: a tiny Vibe-Games starter game.
 // Shows the whole SDK surface you normally need: ready, user, storage (cloud saves),
 // achievements, pause/resume and saving on exit.
 (async function () {
@@ -51,7 +51,7 @@
   // ---- 4. Lifecycle hooks -----------------------------------------------------
   Platform.game.onPause(() => { paused = true; });   // player opened the overlay / switched tab
   Platform.game.onResume(() => { paused = false; last = performance.now(); });
-  Platform.game.onExit(() => persist());             // runs before Lantern closes the game
+  Platform.game.onExit(() => persist());             // runs before Vibe-Games closes the game
 
   // ---- 5. Loop ----------------------------------------------------------------
   function frame(now) {

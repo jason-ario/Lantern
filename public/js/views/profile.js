@@ -63,7 +63,7 @@ export async function render(root, _, query) {
           <section class="panel">
             <h3>Offline &amp; downloads</h3>
             <p class="muted small" id="dlUsage">…</p>
-            <label class="f check"><input type="checkbox" id="autoDl" ${localStorage.getItem('lantern.autoDownload') !== '0' ? 'checked' : ''}><span>Download games after purchase so they play offline</span></label>
+            <label class="f check"><input type="checkbox" id="autoDl" ${localStorage.getItem('vibe.autoDownload') !== '0' ? 'checked' : ''}><span>Download games after purchase so they play offline</span></label>
             <button class="btn btn-ghost btn-sm" id="clearDl">Remove all downloads</button>
           </section>
           ${state.creator.admin ? `<section class="panel">
@@ -83,7 +83,7 @@ export async function render(root, _, query) {
     },
   });
   packages.usage().then((u) => { const el = root.querySelector('#dlUsage'); if (el) el.textContent = u.games ? `${u.games} game${u.games === 1 ? '' : 's'} downloaded on this device · ${bytes(u.bytes)}. Each build is signature-checked before it runs.` : 'No games downloaded on this device yet.'; });
-  root.querySelector('#autoDl').onchange = (e) => { try { localStorage.setItem('lantern.autoDownload', e.target.checked ? '1' : '0'); } catch { /* ignore */ } };
+  root.querySelector('#autoDl').onchange = (e) => { try { localStorage.setItem('vibe.autoDownload', e.target.checked ? '1' : '0'); } catch { /* ignore */ } };
   root.querySelector('#clearDl').onclick = async () => { await packages.clearAll(); toast('Removed all downloaded games from this device'); go('/profile'); };
   root.querySelector('#ctaSignup')?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => go('/profile') }));
   root.querySelector('#ctaLogin')?.addEventListener('click', () => openAuth({ mode: 'login', onDone: () => go('/profile') }));

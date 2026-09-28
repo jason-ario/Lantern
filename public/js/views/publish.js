@@ -2,7 +2,8 @@
 import { api } from '../api.js';
 import { applyUserState, loadCatalog, state } from '../state.js';
 import { go } from '../nav.js';
-import { esc, price, bytes, icons, toast, modal, date, $, $$ } from '../ui.js';
+import { esc, price, bytes, icons, toast, modal, date, vibeChips, $, $$ } from '../ui.js';
+import { TOOLS, MAX_TOOLS, MAX_PROMPT, buildTime } from '../vibe.js';
 
 const PRICES = [0, 299, 499, 799, 999, 1499, 1999];
 const money = (c) => `$${(c / 100).toFixed(2)}`;
@@ -21,12 +22,12 @@ const b64 = (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0
 function renderLocked(root) {
   const c = state.creator;
   root.innerHTML = `<div class="page publish">
-    <div class="pub-head"><div><div class="eyebrow">Lantern Creator</div><h1>Publish a web game</h1>
-    <p class="muted">Upload an HTML/JS game package and it gets a live store page instantly.</p>
+    <div class="pub-head"><div><div class="eyebrow">vibe-games publish</div><h1>Ship your vibe-coded game</h1>
+    <p class="muted">Upload the zip your AI helped you build, and it gets a live store page the moment you hit publish.</p>
     <p><a class="btn btn-ghost btn-sm" href="/developers" data-link>Read the creator guide</a></p></div></div>
     <div class="panel pub-lock">
       ${c.enabled ? `<h3>Creator access</h3>
-      <p class="muted">Publishing on this server is limited to creators. Enter the creator password to continue.</p>
+      <p class="muted">Publishing is invite-only during early access. Enter the creator password to continue.</p>
       <form id="loginForm" class="pub-lock-form">
         <input type="password" name="password" placeholder="Creator password" autocomplete="current-password" required>
         <button class="btn btn-buy">Unlock publishing</button>
@@ -50,10 +51,10 @@ export async function render(root) {
   const form = { pkg: null, report: null, cover: null, shots: [] };
   root.innerHTML = `<div class="page publish">
     <div class="pub-head">
-      <div><div class="eyebrow">Lantern Creator · Prototype</div><h1>Publish a web game</h1>
-      <p class="muted">Any HTML/JS/WebGL game becomes a premium, ownable, instantly playable title. Package it, describe it, publish — the store page is live immediately.</p>
+      <div><div class="eyebrow">vibe-games publish --prototype</div><h1>Ship your vibe-coded game</h1>
+      <p class="muted">You prompted it, you played it, you fixed the weird bug at 2am. Now sell it. Any HTML/JS/WebGL game becomes a premium, ownable title that plays in one click. Zip it, tell us how it was vibed, publish.</p>
       <p class="pub-guide-link"><a href="/developers" data-link>New here? Read the creator guide →</a> <span class="muted small">SDK reference, packaging, pricing and the ${pct()} revenue share.</span></p></div>
-      <ol class="pub-steps"><li class="on" data-s="1"><b>1</b>Build<small>Web game + Lantern SDK</small></li><li data-s="2"><b>2</b>Package<small>.zip with manifest.json</small></li><li data-s="3"><b>3</b>Describe<small>Store metadata</small></li><li data-s="4"><b>4</b>Publish<small>Live instantly</small></li></ol>
+      <ol class="pub-steps"><li class="on" data-s="1"><b>1</b>Vibe it<small>Your AI + our SDK</small></li><li data-s="2"><b>2</b>Package<small>.zip with manifest.json</small></li><li data-s="3"><b>3</b>Describe<small>Store page + the vibe</small></li><li data-s="4"><b>4</b>Ship<small>Live instantly</small></li></ol>
     </div>
     <section class="my-games" id="myGames"></section>
     <div class="sec-h pub-new-h"><h2>Publish a new game</h2></div>
@@ -64,11 +65,11 @@ export async function render(root) {
           <label class="drop" id="drop">
             <input type="file" id="pkgInput" accept=".zip,.html,.htm" hidden>
             <div class="drop-ico">${icons.box}</div>
-            <div><b id="dropTitle">Drop your build (.zip) here or click to choose</b><small id="dropSub">A folder with index.html, your JS/assets and a manifest.json. Up to 50 MB.</small></div>
+            <div><b id="dropTitle">Drop your build (.zip) here, or click to choose</b><small id="dropSub">A folder with index.html, your JS/assets and a manifest.json. Up to 50 MB.</small></div>
           </label>
           <div class="pub-sample"><span class="muted small">No build handy?</span> <button type="button" class="btn btn-ghost btn-sm" id="useSample">Use sample package — “Skylark” (4 KB)</button></div>
           <div id="report"></div>
-          <details class="pub-ref"><summary>How to make a Lantern package</summary>
+          <details class="pub-ref"><summary>How to make a Vibe-Games package</summary>
 <pre><code>my-game/
   index.html        ← entry, loads the SDK:
                       &lt;script src="/sdk/v1/platform-sdk.js"&gt;&lt;/script&gt;
@@ -101,18 +102,29 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           </div>
         </section>
 
+        <section class="panel vibe-panel">
+          <h3>The vibe</h3>
+          <p class="muted small">Players love seeing how a game was made. This shows on your store page and lets people find your game by tool.</p>
+          <div class="fgrid">
+            <div class="f span2"><span>Built with <small>pick up to ${MAX_TOOLS}</small></span>
+              <div class="tool-pick" id="toolPick">${TOOLS.map((t) => `<label><input type="checkbox" name="builtWith" value="${t.id}"><span class="vibe-chip" style="--c:${t.color}">${esc(t.name)}</span></label>`).join('')}</div></div>
+            <label class="f span2"><span>The prompt that started it <small>optional · up to ${MAX_PROMPT} characters</small></span><textarea name="vibePrompt" rows="3" maxlength="${MAX_PROMPT}" placeholder="e.g. A one-button game about a paper plane riding thermals between cliffs. Make it feel calm."></textarea></label>
+            <label class="f"><span>Time to build <small>hours, roughly</small></span><input name="vibeHours" type="number" min="0.1" max="5000" step="0.5" placeholder="e.g. 6"></label>
+          </div>
+        </section>
+
         <section class="panel">
           <h3>Media</h3>
           <div class="fgrid">
             <label class="f"><span>Cover / key art <small>PNG, JPG or WebP</small></span><input type="file" name="cover" accept="image/png,image/jpeg,image/webp"></label>
             <label class="f"><span>Screenshots <small>up to 6</small></span><input type="file" name="shots" accept="image/png,image/jpeg,image/webp" multiple></label>
           </div>
-          <p class="muted small">Leave media empty and Lantern generates placeholder key art — a stand-in for future AI-assisted store assets.</p>
+          <p class="muted small">Leave media empty and Vibe-Games generates placeholder key art for you. Real screenshots sell much better, though.</p>
         </section>
 
         <div class="pub-actions">
-          <span class="muted small" id="pubHint">Add a valid package and a title to publish.</span>
-          <button class="btn btn-buy btn-xl" id="publishBtn" type="submit" disabled>Publish to Lantern</button>
+          <span class="muted small" id="pubHint">Add a valid package, a title and at least one tool to publish.</span>
+          <button class="btn btn-buy btn-xl" id="publishBtn" type="submit" disabled>Ship it</button>
         </div>
       </form>
 
@@ -122,6 +134,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           <div class="pv-cap-meta"><b id="pvTitle">Your game</b><span class="price" id="pvPrice">$4.99</span></div></div>
         <p class="pv-short muted" id="pvShort">Your short description appears here.</p>
         <div class="pv-tags" id="pvTags"></div>
+        <div class="pv-vibe" id="pvVibe"></div>
         <div class="pv-facts" id="pvFacts"></div>
       </aside>
     </div>
@@ -129,6 +142,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
 
   const f = $('#pubForm', root);
   const val = (n) => f.elements[n].value.trim();
+  const pickedTools = () => $$('#toolPick input:checked', root).map((i) => i.value);
   const setStep = (n) => $$('.pub-steps li', root).forEach((li) => li.classList.toggle('on', +li.dataset.s <= n));
 
   const updatePreview = () => {
@@ -139,10 +153,14 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
     $('#earnHint', root).textContent = +val('price') ? `you earn up to ${money(Math.floor(+val('price') * share()))} per sale` : 'free games earn nothing';
     $('#pvShort', root).textContent = val('shortDescription') || 'Your short description appears here.';
     $('#pvTags', root).innerHTML = val('tags').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8).map((x) => `<span class="tag">${esc(x)}</span>`).join('');
-    $('#pvFacts', root).innerHTML = form.report ? `<dl class="kv"><dt>Version</dt><dd>${esc(val('version'))}</dd><dt>Package</dt><dd>${bytes(form.report.sizeBytes)} · ${form.report.fileCount} files</dd><dt>SDK</dt><dd>${form.report.usesSdk ? 'Lantern SDK v1' : 'Not detected'}</dd><dt>Achievements</dt><dd>${form.report.manifest?.achievements?.length ?? 0}</dd><dt>Demo</dt><dd>${f.elements.demo.checked ? '5 minutes' : 'None'}</dd></dl>` : '';
-    const ready = form.report?.ok && val('title').length >= 2;
+    $('#pvFacts', root).innerHTML = form.report ? `<dl class="kv"><dt>Version</dt><dd>${esc(val('version'))}</dd><dt>Package</dt><dd>${bytes(form.report.sizeBytes)} · ${form.report.fileCount} files</dd><dt>SDK</dt><dd>${form.report.usesSdk ? 'Vibe-Games SDK v1' : 'Not detected'}</dd><dt>Achievements</dt><dd>${form.report.manifest?.achievements?.length ?? 0}</dd><dt>Demo</dt><dd>${f.elements.demo.checked ? '5 minutes' : 'None'}</dd></dl>` : '';
+    const tools = pickedTools();
+    const bt = buildTime(+val('vibeHours') || null);
+    $('#pvVibe', root).innerHTML = tools.length || bt || val('vibePrompt') ? `${tools.length ? `<div class="gp-vibe-label">// built with${bt ? ` · ${esc(bt)}` : ''}</div>${vibeChips(tools, { max: MAX_TOOLS, size: 'sm' })}` : ''}${val('vibePrompt') ? `<div class="pv-prompt"><span>&gt;</span> ${esc(val('vibePrompt'))}</div>` : ''}` : '';
+    $$('#toolPick input', root).forEach((i) => { i.disabled = !i.checked && tools.length >= MAX_TOOLS; });
+    const ready = form.report?.ok && val('title').length >= 2 && tools.length > 0;
     $('#publishBtn', root).disabled = !ready;
-    $('#pubHint', root).textContent = ready ? 'Ready. Publishing creates version ' + val('version') + ' and a live store page.' : 'Add a valid package and a title to publish.';
+    $('#pubHint', root).textContent = ready ? 'Ready. Shipping creates version ' + val('version') + ' and a live store page.' : !form.report?.ok || val('title').length < 2 ? 'Add a valid package and a title to publish.' : 'Pick at least one tool you built it with.';
     if (form.report?.ok) setStep(val('title') ? 3 : 2);
   };
   f.addEventListener('input', updatePreview);
@@ -163,7 +181,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
       <div class="rep-h">${r.ok ? '✓ Package is valid' : '✕ Package has problems'}</div>
       <ul>
         ${r.manifest ? `<li class="ok">manifest.json — <b>${esc(r.manifest.name)}</b> v${esc(r.manifest.version)}, entry <code>${esc(r.manifest.entry)}</code></li>` : ''}
-        ${r.usesSdk ? '<li class="ok">Lantern Platform SDK v1 detected</li>' : ''}
+        ${r.usesSdk ? '<li class="ok">Vibe-Games Platform SDK v1 detected</li>' : ''}
         ${r.manifest?.achievements?.length ? `<li class="ok">${r.manifest.achievements.length} achievements declared</li>` : ''}
         ${r.errors.map((e) => `<li class="err">${esc(e)}</li>`).join('')}
         ${r.warnings.map((e) => `<li class="warn">${esc(e)}</li>`).join('')}
@@ -192,7 +210,10 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
   $('#useSample', root).onclick = async () => {
     const buf = await (await fetch('/creator/skylark-1.0.0.zip')).arrayBuffer();
     if (!val('shortDescription')) f.elements.shortDescription.value = 'Fold a paper plane and ride the evening thermals between sandstone cliffs. One button, endless sky.';
-    if (!val('description')) f.elements.description.value = 'Skylark is a tiny one-button flight game built in an afternoon.\n\nHold to climb, release to glide, and see how far the wind will carry you. Your best flight is saved to your Lantern account.';
+    if (!val('description')) f.elements.description.value = 'Skylark is a tiny one-button flight game, vibe-coded in an afternoon.\n\nHold to climb, release to glide, and see how far the wind will carry you. Your best flight is saved to your Vibe-Games account.';
+    if (!pickedTools().length) $$('#toolPick input', root).forEach((i) => { i.checked = i.value === 'claude-code'; });
+    if (!val('vibePrompt')) f.elements.vibePrompt.value = 'One-button game: a paper plane riding the evening thermals between sandstone cliffs. Hold to climb, let go to glide. Calm, warm colours, remember my best flight.';
+    if (!val('vibeHours')) f.elements.vibeHours.value = '3';
     if (!val('tags')) f.elements.tags.value = 'Arcade, Casual, Minimalist, Score Attack';
     if (!val('developerName')) f.elements.developerName.value = 'Afternoon Games';
     f.elements.price.value = '299';
@@ -217,10 +238,10 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
     e.preventDefault();
     if (!form.report?.ok) return;
     setStep(4);
-    const steps = ['Uploading package', 'Validating manifest & files', `Hashing ${form.report.fileCount} files`, `Creating version ${val('version')}`, 'Generating store page', 'Adding to your library'];
+    const steps = ['Uploading package', 'Validating manifest & files', `Hashing ${form.report.fileCount} files`, `Creating version ${val('version')}`, 'Generating store page', 'Adding to your library', 'Vibe check'];
     const panel = document.createElement('div');
     panel.className = 'pub-progress';
-    panel.innerHTML = `<h3>Publishing ${esc(val('title'))}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`;
+    panel.innerHTML = `<h3>Shipping ${esc(val('title'))}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`;
     f.replaceWith(panel);
     const lis = $$('li', panel);
     let i = 0;
@@ -233,6 +254,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           priceCents: +val('price'), demo: f.elements.demo.checked,
           shortDescription: val('shortDescription'), description: f.elements.description.value,
           tags: val('tags').split(',').map((x) => x.trim()).filter(Boolean),
+          builtWith: pickedTools(), vibe: { prompt: val('vibePrompt'), hours: val('vibeHours') || null },
           cover: form.cover, screenshots: form.shots, package: form.pkg,
         }),
         new Promise((res) => setTimeout(res, 1800)),
@@ -243,7 +265,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
       applyUserState(r.state);
       panel.insertAdjacentHTML('beforeend', `<div class="pub-live">
         <div class="co-check">✓</div>
-        <div><h3>${esc(val('title'))} is live on Lantern</h3><p class="muted">Version ${esc(r.version)} · build <span class="mono">${esc(r.buildHash.slice(0, 12))}</span> · immutable URL <span class="mono">/games/${esc(r.gameId)}/${esc(r.version)}/</span></p></div>
+        <div><h3>${esc(val('title'))} is live. Vibe check passed ✦</h3><p class="muted">Version ${esc(r.version)} · build <span class="mono">${esc(r.buildHash.slice(0, 12))}</span> · immutable URL <span class="mono">/games/${esc(r.gameId)}/${esc(r.version)}/</span></p></div>
         <div class="co-actions"><a class="btn btn-ghost" href="/app/${esc(r.gameId)}" data-link>View store page</a><a class="btn btn-play btn-lg" href="/play/${esc(r.gameId)}" data-link>${icons.play} Play now</a></div>
       </div>`);
     } catch (err) {
@@ -259,7 +281,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
 
 // ---------------- Discovery: how the algorithm sees each game ----------------
 const STATUS = {
-  new: ['New', 'In its discovery window on the “New on Lantern” shelf'],
+  new: ['New', 'In its discovery window on the “Fresh off the prompt” shelf'],
   promoted: ['Promoted', 'On the front page, shelves and recommendations'],
   listed: ['Listed', 'In search and on its store page, not promoted yet'],
   needs_fix: ['Needs fixing', 'Pulled from shelves: many launches fail or crash'],
@@ -276,11 +298,11 @@ function rankDetail(r) {
   const h = r.health;
   return `<div class="rk">
     <div class="rk-head">
-      <div class="rk-score"><b>${Math.round(r.score)}</b><small>Lantern Score</small></div>
+      <div class="rk-score"><b>${Math.round(r.score)}</b><small>Vibe Score</small></div>
       <div class="rk-status"><span class="rk-pill st-${esc(r.status)}">${label}</span><p>${desc}.</p>
         ${r.window ? `<div class="rk-window"><div class="bar"><i style="width:${Math.min(100, (r.window.players / r.window.target) * 100)}%"></i></div><small>${Math.floor(r.window.players)} of ${r.window.target} players · ${r.window.daysLeft} days left in the discovery window. After that it's promoted if its score is ${r.promoteAt}+.</small></div>`
           : r.status === 'listed' ? `<small class="muted">Promotion happens automatically at a score of ${r.promoteAt}. Scores update as people play.</small>` : ''}
-        ${r.status === 'needs_fix' ? `<small class="rk-warn">Only ${pctTxt(h.connectRate)} of recent launches connected to Lantern and ${pctTxt(h.errorRate)} hit uncaught errors. Fix the build and publish an update; it's re-checked automatically.</small>` : ''}
+        ${r.status === 'needs_fix' ? `<small class="rk-warn">Only ${pctTxt(h.connectRate)} of recent launches connected to Vibe-Games and ${pctTxt(h.errorRate)} hit uncaught errors. Fix the build and publish an update; it's re-checked automatically.</small>` : ''}
       </div>
       <div class="rk-conf"><small>Confidence</small><b>${Math.round(r.confidence * 100)}%</b><small>more players = more certain</small></div>
     </div>
@@ -312,7 +334,7 @@ async function renderMyGames(host) {
         <span class="mg-notes muted small">${esc((g.versions[0]?.notes ?? '').slice(0, 120))}</span></div>
       ${g.priceCents ? `<div class="mg-sales" title="${g.sales.testCount ? `${g.sales.testCount} of these were demo-wallet test purchases. ` : ''}Your ${pct()} share is before payment processing fees, taxes and refunds.">
         <b>${money(g.sales.creatorCents)}</b><span class="muted small">your share · ${g.sales.count} sale${g.sales.count === 1 ? '' : 's'}${g.sales.testCount ? ` (${g.sales.testCount} test)` : ''}</span></div>` : '<div class="mg-sales"><b>Free</b><span class="muted small">' + g.owners + ' claimed</span></div>'}
-      ${g.ranking ? `<button class="mg-rank st-${esc(g.ranking.status)}" data-rank="${esc(g.id)}" title="How Lantern is ranking this game">${rankChip(g.ranking)}</button>` : ''}
+      ${g.ranking ? `<button class="mg-rank st-${esc(g.ranking.status)}" data-rank="${esc(g.id)}" title="How Vibe-Games is ranking this game">${rankChip(g.ranking)}</button>` : ''}
       <div class="mg-actions"><a class="btn btn-ghost btn-sm" href="/app/${esc(g.id)}" data-link>Store page</a><button class="btn btn-buy btn-sm" data-update="${esc(g.id)}">Publish update</button></div>
     </div>${g.ranking ? `<div class="mg-detail" id="rank-${esc(g.id)}" hidden>${rankDetail(g.ranking)}</div>` : ''}`).join('')}</div>`;
   host.onclick = (e) => {

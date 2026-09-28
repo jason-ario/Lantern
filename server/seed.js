@@ -4,7 +4,7 @@ import path from 'node:path';
 import * as db from './db.js';
 import { hashDir, packageDir, readManifest } from './packages.js';
 import { developers, games, placeholderAchievements } from '../catalog/games.js';
-import { ACCOUNT_MODE } from './config.js';
+import { ACCOUNT_MODE, BUILTIN_PACKAGES_DIR } from './config.js';
 import { signBuild, currentKeyId } from './signing.js';
 
 export const DEFAULT_USER_ID = 'usr_jason';
@@ -46,6 +46,7 @@ export function seed() {
       tags: g.tags, features: g.features, shortDescription: g.short, description: g.description,
       releaseDate: g.releaseDate, status: g.status, rating: g.rating, stats: g.stats,
       featured: g.featured, demo: g.demo, logo: g.logo, media: mediaFor(g.id), blurb: g.blurb,
+      builtWith: g.builtWith ?? [], vibe: g.vibe ?? null,
       currentVersionId: null, source: 'seed', createdAt: created,
     });
     if (g.status !== 'released') {
@@ -60,6 +61,33 @@ export function seed() {
   }
 
   if (ACCOUNT_MODE === 'single') seedDemoUser();
+}
+
+// Keeps an existing database in step with the code on every start:
+//  • seed games pick up catalog fields added later (built-with tools, vibe
+//    metadata, store copy), so an old data/db.json doesn't need a reset;
+//  • built-in packages that were edited on disk are re-hashed and re-signed, so
+//    offline verification keeps matching the files the server actually serves.
+// Published (creator-uploaded) games and versions are never touched.
+export function syncSeedCatalog() {
+  for (const g of games) {
+    const row = db.get('games', g.id);
+    if (!row || row.source !== 'seed') continue;
+    const patch = {};
+    for (const [k, v] of Object.entries({ builtWith: g.builtWith ?? [], vibe: g.vibe ?? null, shortDescription: g.short, description: g.description, blurb: g.blurb, features: g.features })) {
+      if (JSON.stringify(row[k] ?? null) !== JSON.stringify(v ?? null)) patch[k] = v;
+    }
+    if (Object.keys(patch).length) db.update(row, patch);
+  }
+  for (const ver of db.all('gameVersions')) {
+    const [dir, version] = String(ver.packagePath ?? '').split('/');
+    const game = db.get('games', ver.gameId);
+    if (!dir || !version || game?.source !== 'seed' || !fs.existsSync(path.join(BUILTIN_PACKAGES_DIR, dir, version))) continue;
+    const { files, sizeBytes, buildHash } = hashDir(packageDir(dir, version));
+    if (buildHash === ver.buildHash) continue;
+    const { signature } = signBuild({ gameId: ver.gameId, version: ver.version, entry: ver.entry, buildHash, files });
+    db.update(ver, { files, sizeBytes, buildHash, signature, signKeyId: currentKeyId() });
+  }
 }
 
 // The original single-account demo ("Jason" with some play history). Only used with ACCOUNT_MODE=single.

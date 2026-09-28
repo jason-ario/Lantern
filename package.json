@@ -1,8 +1,8 @@
 {
-  "name": "lantern",
+  "name": "vibe-games",
   "version": "0.1.0",
   "private": true,
-  "description": "Lantern \u2014 premium instant-play web games platform (prototype)",
+  "description": "Vibe-Games \u2014 the premium marketplace for vibe-coded games (prototype)",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -16,6 +16,7 @@
     "test:nightpaw": "node scripts/qa-nightpaw.mjs",
     "test:ranking": "node scripts/test-ranking.mjs",
     "test:features": "node scripts/test-features.mjs",
-    "gen:signing-key": "node scripts/gen-signing-key.mjs"
+    "gen:signing-key": "node scripts/gen-signing-key.mjs",
+    "build:starter": "node scripts/build-starter.mjs"
   }
 }

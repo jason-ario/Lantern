@@ -1,14 +1,14 @@
-// Lantern prototype server. Zero dependencies (Node >= 20).
+// Vibe-Games prototype server. Zero dependencies (Node >= 20).
 //   /            platform SPA (public/)
 //   /api/*       platform services (server/api.js)
 //   /games/*     immutable game packages (packages/) — untrusted content
-//   /sdk/*       Lantern Platform SDK for games
+//   /sdk/*       Vibe-Games Platform SDK for games
 //   /user-media  developer-uploaded store media — untrusted content
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as db from './db.js';
-import { seed } from './seed.js';
+import { seed, syncSeedCatalog } from './seed.js';
 import crypto from 'node:crypto';
 import { handleApi, HttpError, googleStart, googleCallback, stripeWebhook } from './api.js';
 import { initSigning } from './signing.js';
@@ -23,6 +23,7 @@ const SDK = path.join(ROOT, 'sdk');
 
 initSigning();
 db.open(DB_FILE, seed);
+syncSeedCatalog();
 const GAMES_HOST = GAMES_ORIGIN ? new URL(GAMES_ORIGIN).host : null;
 
 const MIME = {
@@ -31,7 +32,7 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
   '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.webm': 'video/webm',
-  '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.zip': 'application/zip',
+  '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.zip': 'application/zip',
 };
 
 // Platform CSP. The per-response nonce lets the runtime start games from the
@@ -162,7 +163,7 @@ const server = http.createServer(async (req, res) => {
       // (custom header forces CORS preflight, which we never grant) and, when an
       // Origin is present, from our own origin. Sandboxed games send Origin: null.
       const reqOrigin = req.headers.origin;
-      if (req.headers['x-lantern-client'] !== 'platform' || (reqOrigin && reqOrigin !== origin)) {
+      if (req.headers['x-vibe-client'] !== 'platform' || (reqOrigin && reqOrigin !== origin)) {
         throw new HttpError(403, 'Forbidden');
       }
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readBody(req, 80e6) : null;
@@ -237,7 +238,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Lantern running at http://localhost:${PORT}`);
+  console.log(`Vibe-Games running at http://localhost:${PORT}`);
   console.log(`  payments: ${stripeEnabled() ? 'Stripe' : 'demo wallet'} · Google sign-in: ${googleEnabled() ? 'on' : 'off'} · games origin: ${GAMES_ORIGIN || 'same as platform'}`);
   if (GAMES_ORIGIN && !PUBLIC_URL) console.warn('  ! GAMES_ORIGIN is set without PUBLIC_URL — game frames can be embedded by any site');
   console.log(`  data: ${DATA_DIR} · accounts: ${ACCOUNT_MODE} · publishing: ${ADMIN_OPEN ? 'open (local dev)' : ADMIN_PASSWORD ? 'password protected' : 'disabled (set ADMIN_PASSWORD)'}${IS_PROD ? ' · production' : ''}`);

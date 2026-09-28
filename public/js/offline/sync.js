@@ -7,7 +7,7 @@ import { api, isNetworkError, onConnectivity } from '../api.js';
 import { state } from '../state.js';
 
 const uid = () => state.user?.id ?? 'anon';
-const K = { mirror: () => `lantern.saves.v1:${uid()}`, queue: () => `lantern.queue.v1:${uid()}`, ach: () => `lantern.ach.v1:${uid()}` };
+const K = { mirror: () => `vibe.saves.v1:${uid()}`, queue: () => `vibe.queue.v1:${uid()}`, ach: () => `vibe.ach.v1:${uid()}` };
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k) ?? 'null') ?? d; } catch { return d; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* quota */ } };
 

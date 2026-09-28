@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, toggleWishlist, onChange } from '../state.js';
-import { esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, $, $$ } from '../ui.js';
+import { esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { openCheckout } from './checkout.js';
 
@@ -21,23 +21,23 @@ export async function render(root, [id], query) {
     let html = '';
     if (g.status === 'coming_soon') {
       html += `<div class="buy-box"><div class="bb-title">${esc(g.title)} releases ${date(g.releaseDate)}</div>
-        <div class="bb-row"><span class="muted">Wishlist it and it'll be waiting on your list the day it launches.</span>
+        <div class="bb-row"><span class="muted">Still cooking. Wishlist it and it'll be waiting for you on launch day.</span>
         <button class="btn ${wished ? 'btn-ghost' : 'btn-buy'}" data-wish>${wished ? `${icons.heart} On your wishlist` : `${icons.heartOutline} Add to Wishlist`}</button></div></div>`;
       return html;
     }
     if (owned) {
       html += `<div class="buy-box owned-box"><div class="bb-title">${esc(g.title)} is in your Library</div>
-        <div class="bb-row"><span class="muted">${g.play.playtimeSeconds ? `${hours(g.play.playtimeSeconds)} on record · last played ${ago(g.play.lastPlayedAt).toLowerCase()}` : 'Never played — it launches in about a second.'}</span>
+        <div class="bb-row"><span class="muted">${g.play.playtimeSeconds ? `${hours(g.play.playtimeSeconds)} on record · last played ${ago(g.play.lastPlayedAt).toLowerCase()}` : 'Never played. It launches in about a second.'}</span>
         <div class="bb-actions"><a class="btn btn-ghost" href="/library/${esc(g.id)}" data-link>View in Library</a><a class="btn btn-play btn-lg" href="/play/${esc(g.id)}" data-link>${icons.play} Play</a></div></div></div>`;
       return html;
     }
     if (g.demo) {
       html += `<div class="buy-box demo-box"><div class="bb-title">Try ${esc(g.title)} instantly</div>
-        <div class="bb-row"><span class="muted">No download, no install. ${g.demo.minutes}-minute demo — your progress carries over if you buy.</span>
+        <div class="bb-row"><span class="muted">No download, no install. A ${g.demo.minutes}-minute demo, and your progress carries over if you buy.</span>
         <a class="btn btn-demo btn-lg" href="/play/${esc(g.id)}?demo=1" data-link>${icons.play} Try demo</a></div></div>`;
     }
     html += `<div class="buy-box"><div class="bb-title">Buy ${esc(g.title)}</div>
-      <div class="bb-row"><span class="muted">${g.version?.placeholder ? 'Prototype: this title launches a placeholder build.' : 'Own it forever. Plays on web today, desktop soon.'}</span>
+      <div class="bb-row"><span class="muted">${g.version?.placeholder ? 'Prototype: this title launches a placeholder build.' : 'Yours forever. Plays in any browser today, desktop app soon.'}</span>
       <div class="bb-actions"><div class="bb-price">${price(g.priceCents)}</div><button class="btn btn-buy btn-lg" data-buy>Buy</button></div></div></div>`;
     return html;
   };
@@ -58,6 +58,7 @@ export async function render(root, [id], query) {
       <aside class="gp-side">
         <div class="gp-capsule" style="background-image:url('${esc(g.media.header)}')">${logo(g, 'md')}</div>
         <p class="gp-short">${esc(g.shortDescription)}</p>
+        ${g.builtWith?.length ? `<div class="gp-vibe"><div class="gp-vibe-label">// built with${vibeTime(g) ? ` · ${esc(vibeTime(g))}` : ''}</div>${vibeChips(g.builtWith, { max: 5, link: true })}</div>` : ''}
         ${g.rank?.badges?.length ? `<div class="gp-badges">${rankBadges(g, 3)}</div>` : ''}
         <dl class="gp-facts">
           <dt>All reviews</dt><dd><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</dd>
@@ -75,6 +76,16 @@ export async function render(root, [id], query) {
       <div class="gp-main">
         <div id="buyArea">${buyBlock()}</div>
 
+        ${g.vibe || g.builtWith?.length ? `<section class="vibe-box"><div class="vibe-box-in">
+          <h3>How it was vibed</h3>
+          ${g.vibe?.prompt ? `<div class="vibe-prompt">${esc(g.vibe.prompt)}</div><p class="muted small vibe-cap">The prompt that started it all, straight from the developer.</p>` : ''}
+          <div class="vibe-stats">
+            ${g.builtWith?.length ? `<div class="vibe-stat"><small>built with</small>${vibeChips(g.builtWith, { max: 5, link: true })}</div>` : ''}
+            ${vibeTime(g) ? `<div class="vibe-stat"><small>time to build</small><b>${esc(vibeTime(g))}${g.vibe.hours >= 48 ? `<small>~${Math.round(g.vibe.hours)} hrs</small>` : ''}</b></div>` : ''}
+            <div class="vibe-stat"><small>made by</small><b>${esc(g.developer?.name ?? 'Unknown')}</b></div>
+          </div>
+        </div></section>` : ''}
+
         <section class="gp-sec">
           <h3>About this game</h3>
           ${g.description.map((p) => `<p>${esc(p)}</p>`).join('')}
@@ -88,12 +99,12 @@ export async function render(root, [id], query) {
         <section class="gp-sec">
           <h3>Runtime &amp; requirements</h3>
           <div class="req">
-            <div><span>Runs on</span><b>Lantern Runtime 1.x — web today, desktop app (coming)</b></div>
+            <div><span>Runs on</span><b>Vibe-Games Runtime 1.x. Web today, desktop app soon</b></div>
             <div><span>Install</span><b>None. Streams instantly, then cached${g.version ? ` · ${bytes(g.version.sizeBytes)} package` : ''}</b></div>
             <div><span>Graphics</span><b>${(g.version?.runtime?.features ?? ['canvas2d']).map((f) => ({ canvas2d: 'Canvas 2D', webgl2: 'WebGL 2', webgpu: 'WebGPU', webaudio: 'Web Audio', dom: 'HTML/CSS', wasm: 'WebAssembly' }[f] ?? f)).join(' · ')}</b></div>
             <div><span>Input</span><b>${(g.version?.input?.length ? g.version.input : ['keyboard', 'mouse']).map((i) => i[0].toUpperCase() + i.slice(1)).join(' · ')}</b></div>
             <div><span>Browser</span><b>Any current Chromium, Firefox or Safari</b></div>
-            <div><span>Isolation</span><b>Sandboxed — the game can't access your account, other games or your files</b></div>
+            <div><span>Isolation</span><b>Sandboxed. The game can't touch your account, other games or your files</b></div>
           </div>
         </section>
 
@@ -102,7 +113,7 @@ export async function render(root, [id], query) {
           ${g.rating ? `<div class="rev">
             <div class="rev-score"><div class="${r.cls} rev-label">${r.label}</div><div class="muted">${g.rating.pct}% of ${g.rating.count.toLocaleString()} reviews are positive</div></div>
             <div class="rev-bar"><div style="width:${g.rating.pct}%"></div></div>
-            <p class="muted small">Written reviews arrive with community features. Ratings shown are placeholder data for this prototype.</p>
+            <p class="muted small">Written reviews land with community features. Ratings shown are placeholder data for this prototype.</p>
           </div>` : '<p class="muted">No reviews yet.</p>'}
         </section>
       </div>
@@ -118,7 +129,7 @@ export async function render(root, [id], query) {
             <dt>Size</dt><dd>${bytes(g.version.sizeBytes)}</dd>
             <dt>Files</dt><dd>${g.version.fileCount}</dd>
             <dt>Build</dt><dd class="mono" title="${esc(g.version.buildHash)}">${esc(g.version.buildHash.slice(0, 12))}</dd>
-            <dt>SDK</dt><dd>Lantern SDK v${esc(g.version.sdk)}</dd>
+            <dt>SDK</dt><dd>Vibe-Games SDK v${esc(g.version.sdk)}</dd>
             <dt>Updated</dt><dd>${date(g.version.releasedAt)}</dd>
           </dl>
         </div>` : ''}

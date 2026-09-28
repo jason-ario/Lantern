@@ -20,7 +20,7 @@ const ignorable = (t) => /fonts\.(googleapis|gstatic)\.com|ERR_TUNNEL|ERR_CONNEC
 page.on('console', (m) => { if (m.type() === 'error' && !ignorable(m.text()) && !(probing && /Content Security Policy|Failed to load resource/.test(m.text()))) errors.push(`[console] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
 page.on('response', (r) => { if (r.status() >= 400 && !probing) errors.push(`[http ${r.status()}] ${r.url()}`); });
-const api = (method, path, data) => page.request.fetch(`${BASE}${path}`, { method, headers: { 'X-Lantern-Client': 'platform', 'Content-Type': 'application/json' }, data }).then((r) => r.json());
+const api = (method, path, data) => page.request.fetch(`${BASE}${path}`, { method, headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data }).then((r) => r.json());
 const shot = (name) => page.screenshot({ path: `${OUT}/${name}.png` });
 const gameFrame = async () => {
   for (let i = 0; i < 50; i++) {
@@ -79,7 +79,7 @@ const probe = await frame.evaluate(async () => {
   try { localStorage.setItem('x', '1'); r.localStorage = 'ACCESSIBLE'; } catch { r.localStorage = 'blocked'; }
   try { r.cookie = document.cookie === '' ? 'empty' : 'VISIBLE'; } catch { r.cookie = 'blocked'; }
   try { void window.parent.document.body; r.parentDom = 'ACCESSIBLE'; } catch { r.parentDom = 'blocked'; }
-  try { const res = await fetch('/api/state', { headers: { 'X-Lantern-Client': 'platform' } }); r.api = `status ${res.status}`; } catch { r.api = 'blocked'; }
+  try { const res = await fetch('/api/state', { headers: { 'X-Vibe-Client': 'platform' } }); r.api = `status ${res.status}`; } catch { r.api = 'blocked'; }
   try { const res = await fetch('/api/state'); r.apiNoHeader = `status ${res.status}`; } catch { r.apiNoHeader = 'blocked'; }
   try { const res = await fetch('/games/tidewater/1.2.0/manifest.json'); r.otherGame = `status ${res.status}`; } catch { r.otherGame = 'blocked'; }
   try { r.otherSave = await Platform.storage.load('../tidewater/harbor'); } catch (e) { r.otherSave = `rejected (${e.code})`; }
@@ -145,14 +145,14 @@ for (let i = 0; i < 40; i++) await frame.click('#haul');
 await frame.click('[data-buy="skiff"]');
 await frame.click('[data-buy="skiff"]');
 await frame.click('#harborName');
-await frame.fill('input.harbor-name', 'Lantern Cove');
+await frame.fill('input.harbor-name', 'Neon Cove');
 await frame.press('input.harbor-name', 'Enter');
 await page.waitForTimeout(1500);
 const before = await frame.evaluate(() => ({ coins: document.getElementById('coins').textContent, name: document.getElementById('harborName').textContent, skiffs: document.querySelector('[data-b="skiff"] .count').textContent }));
 await shot('07-tidewater');
 await quitGame();
 const harbor = await api('GET', '/api/games/tidewater/saves/harbor');
-check('Tidewater state saved', harbor?.value?.buildings?.skiff === 2 && harbor.value.harborName === 'Lantern Cove', `skiffs=${harbor?.value?.buildings?.skiff} name=${harbor?.value?.harborName}`);
+check('Tidewater state saved', harbor?.value?.buildings?.skiff === 2 && harbor.value.harborName === 'Neon Cove', `skiffs=${harbor?.value?.buildings?.skiff} name=${harbor?.value?.harborName}`);
 await page.goto(`${BASE}/library`);
 await page.waitForTimeout(500);
 await page.goto(`${BASE}/play/tidewater`);
