@@ -3,7 +3,6 @@
 // so the full buy → library → play flow works for every released game.
 
 export const developers = [
-  { id: 'dev_moonwhisker', name: 'Moonwhisker Studio', location: 'Lisbon, PT' },
   { id: 'dev_ninefold', name: 'Ninefold', location: 'Tallinn, EE' },
   { id: 'dev_lowtide', name: 'Low Tide Studio', location: 'Porto, PT' },
   { id: 'dev_kestrel', name: 'Kestrel & Moth', location: 'Bristol, UK' },
@@ -34,23 +33,6 @@ const P = {
 };
 
 export const games = [
-  {
-    id: 'nightpaw', title: 'Nightpaw', developerId: 'dev_moonwhisker', priceCents: 999,
-    tags: ['Metroidvania', 'Action', 'Dark Fantasy', 'Cute', 'Exploration', 'Platformer'],
-    motif: 'dungeon', catArt: true, hud: 'action',
-    palette: { sky1: '#07070d', sky2: '#15132a', far: '#100e1c', near: '#221d33', fog: '#8f86c9', accent: '#ffb347', accent2: '#c7b8ff' },
-    logo: { font: 'Cinzel', weight: 700, color: '#f1e9d6', glow: '#8f86c9', case: 'upper', spacing: '.18em' },
-    short: 'A small black cat in a red scarf-cloak follows a missing girl down the old well, into the Underneath, where lost things go.',
-    description: [
-      'One stormy night Mira follows a pale moth out of her window, and in the morning her bed is empty. Her cat, Nightpaw, has already spent eight of his nine lives. He jumps down the well anyway.',
-      'The Underneath used to be lit by the Hearthlamp. Now it is dark, and lost things are forgetting what they were: thimbles, socks and buttons gone hollow. Scratch your way through them, find the Shadow Dash and Moth Wings, and recover the lost lives you left down here long ago.',
-      'A story-driven metroidvania with painted storybook cutscenes, a cast of polite, frightened creatures, secrets, and the Hollow Warden waiting in his hall. Keyboard, gamepad and touch.',
-    ],
-    features: ['Single-player', 'Cloud Saves', 'Achievements', 'Controller Support', 'Touch Controls', 'Instant Play'],
-    releaseDate: '2026-09-24', status: 'released', rating: { pct: 97, count: 1873 }, stats: { sales: 36400, trend: 100 },
-    featured: true, demo: { minutes: 5 }, package: { dir: 'nightpaw', version: '2.0.0' },
-    blurb: 'Cat-sized metroidvania',
-  },
   {
     id: 'voidrunner', title: 'Voidrunner', developerId: 'dev_ninefold', priceCents: 499,
     tags: ['Arcade', 'Shoot \'em Up', 'Retro', 'Score Attack', 'Fast-Paced'],
@@ -245,7 +227,6 @@ export const games = [
 // How each seed game was vibe-coded: the tools it was built with, the prompt
 // that started it and roughly how long it took. All fictional demo data.
 const VIBES = {
-  nightpaw: { builtWith: ['claude-code', 'cursor'], vibe: { hours: 96, prompt: 'A tiny black cat with a red scarf goes down a well to find the girl who owns him. Metroidvania, storybook cutscenes, sad but cosy. Make the cat feel amazing to control first.' } },
   voidrunner: { builtWith: ['claude-code'], vibe: { hours: 9, prompt: 'Neon arcade shooter, pink and cyan, one more run energy. It should launch in under a second and remember how far I got.' } },
   tidewater: { builtWith: ['claude', 'cursor'], vibe: { hours: 14, prompt: 'Cozy idle game about a fishing harbor. Numbers go up, a lighthouse, and a nice "while you were away" screen when I come back.' } },
   'hollow-lantern': { builtWith: ['cursor', 'claude'], vibe: { hours: 420, prompt: 'Hand-drawn metroidvania in a drowned cathedral. Your only light burns memories as fuel. Every upgrade should cost you something.' } },
@@ -267,11 +248,6 @@ for (const g of games) Object.assign(g, VIBES[g.id] ?? { builtWith: [], vibe: nu
 // Fictional written reviews for the sample games (shown only while sample content
 // is visible). [author, thumbs up?, hours played, date, text]
 export const sampleReviews = {
-  nightpaw: [
-    ['mothlight', true, 6.2, '2026-09-26', 'The cat feels incredible to control. Wall jumps, the pogo slash, the little ear twitch when you land. I finished it in one sitting and went straight back for the missing lives.'],
-    ['Quill & Kettle', true, 4.8, '2026-09-25', 'Storybook cutscenes are gorgeous and the Hollow Warden fight is tough but fair. Wish it were twice as long.'],
-    ['dashbuffer', false, 1.4, '2026-09-27', 'Lovely art but the map screen needs work. Got lost in the Hollows for twenty minutes looking for one crack in a wall.'],
-  ],
   voidrunner: [
     ['sector_nine', true, 11.5, '2026-09-14', 'Launches instantly, plays at 144fps on my old laptop, and the "one more run" pull is real. Furthest sector: 23.'],
     ['arcade_ghost', true, 3.1, '2026-09-18', 'Pure score-attack joy. The synth palette alone is worth the price.'],

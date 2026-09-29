@@ -230,7 +230,7 @@ try {
     const S = 'http://localhost:5302';
     await startServer(5302, { STRIPE_SECRET_KEY: 'sk_test_vibe', STRIPE_API_BASE: 'http://127.0.0.1:5391', STRIPE_WEBHOOK_SECRET: WHSEC });
     const { page, api, ctx } = await newPlayer(S);
-    await page.goto(`${S}/app/nightpaw`); await page.waitForSelector('[data-buy]');
+    await page.goto(`${S}/app/hollow-lantern`); await page.waitForSelector('[data-buy]');
     await page.click('[data-buy]');
     await page.waitForSelector('.auth-form');
     check('Stripe mode: guests are asked to create an account before paying', (await page.textContent('.auth-reason')).includes('Create an account'));
@@ -240,11 +240,11 @@ try {
     await page.click('#authSubmit');
     await page.waitForURL(/\/checkout\/complete/, { timeout: 15000 });
     await page.waitForSelector('.cd-panel .co-check', { timeout: 15000 });
-    check('Stripe Checkout round-trip grants the game', (await page.textContent('.cd-panel h2')).includes('Nightpaw is yours'));
+    check('Stripe Checkout round-trip grants the game', (await page.textContent('.cd-panel h2')).includes('The Hollow Lantern is yours'));
     const st = await api('GET', '/api/state');
-    check('Ownership recorded after Stripe payment', st.body.owned.includes('nightpaw'));
+    check('Ownership recorded after Stripe payment', st.body.owned.includes('hollow-lantern'));
     const orders = await api('GET', '/api/orders');
-    check('Receipt in purchase history', orders.body[0]?.provider === 'stripe' && orders.body[0]?.amountCents === 999);
+    check('Receipt in purchase history', orders.body[0]?.provider === 'stripe' && orders.body[0]?.amountCents === 1499);
     check('Fake wallet is disabled when Stripe is on', (await api('POST', '/api/games/voidrunner/purchase', { paymentMethod: 'demo-wallet' })).status === 403);
     // webhook: pending order fulfilled by a signed event; unsigned rejected
     const co = await api('POST', '/api/games/tidewater/checkout', {});

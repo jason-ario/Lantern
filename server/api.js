@@ -487,15 +487,18 @@ route('POST', '/api/publish', async ({ user, session, body, ctx }) => {
   const motif = ['mountains', 'city', 'sea', 'space', 'forest', 'dungeon', 'desert', 'synth', 'crystal'][parseInt(crypto.createHash('md5').update(title).digest('hex').slice(0, 6), 16) % 9];
   const palette = paletteFromSeed(title);
   const cover = body.cover ? saveImage(gameId, 'cover', body.cover) : saveSvg(gameId, 'cover', art('cover', { seed: title, motif, palette }));
-  const header = body.cover ? cover : saveSvg(gameId, 'header', art('header', { seed: title, motif, palette }));
-  const hero = body.cover ? cover : saveSvg(gameId, 'hero', art('hero', { seed: title, motif, palette }));
+  // Optional wide art: header capsule (≈920×430) and store-page hero banner (≈1920×620).
+  // Without them the cover stands in, or generated art when there's no cover either.
+  const header = body.header ? saveImage(gameId, 'header', body.header) : body.cover ? cover : saveSvg(gameId, 'header', art('header', { seed: title, motif, palette }));
+  const hero = body.hero ? saveImage(gameId, 'hero', body.hero) : body.header ? header : body.cover ? cover : saveSvg(gameId, 'hero', art('hero', { seed: title, motif, palette }));
   const shots = (Array.isArray(body.screenshots) ? body.screenshots : []).slice(0, 6).map((s, i) => saveImage(gameId, `shot${i + 1}`, s));
   if (!shots.length) for (let i = 1; i <= 3; i++) shots.push(saveSvg(gameId, `shot${i}`, art('shot', { seed: `${title}${i}`, motif, palette })));
 
   const live = !requireApproval() || isAdmin(session);
   const game = db.insert('games', {
     id: gameId, title, developerId: dev.id, priceCents, tags: tags.length ? tags : ['Indie'],
-    features: ['Single-player', 'Instant Play', ...(report.usesSdk ? ['Cloud Saves'] : []), ...((manifest.achievements ?? []).length ? ['Achievements'] : [])],
+    features: ['Single-player', 'Instant Play', ...(report.usesSdk ? ['Cloud Saves'] : []), ...((manifest.achievements ?? []).length ? ['Achievements'] : []),
+      ...(Array.isArray(manifest.input) && manifest.input.includes('gamepad') ? ['Controller Support'] : []), ...(Array.isArray(manifest.input) && manifest.input.includes('touch') ? ['Touch Controls'] : [])],
     shortDescription: String(body.shortDescription ?? '').slice(0, 300) || `${title}: freshly vibe-coded and live on Vibe-Games.`,
     description: String(body.description ?? '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).slice(0, 12),
     releaseDate: db.now().slice(0, 10), status: 'released', rating: null, stats: { sales: 0, trend: 100 },
@@ -825,7 +828,7 @@ route('GET', '/api/creator/games', ({ user, session }) => {
   });
 });
 // Store-page edits by the creator go live immediately (they're logged for moderators).
-route('PATCH', '/api/creator/games/:id', ({ user, session, params, body }) => {
+route('PATCH', '/api/creator/games/:id', async ({ user, session, params, body }) => {
   const g = requireGame(params.id);
   if (!canUpdateGame(user, session, g)) fail(403, 'Only the game’s creator can edit it');
   const patch = {};
@@ -841,7 +844,18 @@ route('PATCH', '/api/creator/games/:id', ({ user, session, params, body }) => {
   if (body?.builtWith !== undefined || body?.vibe !== undefined) {
     try { const v = cleanVibe(body.builtWith ?? g.builtWith, body.vibe ?? g.vibe); patch.builtWith = v.builtWith; patch.vibe = v.vibe; } catch (e) { fail(400, e.message); }
   }
+  // Store art: any of cover / header / hero, and screenshots (replaces the whole set).
+  // New files get a fresh name so browsers and caches pick them up straight away.
+  const m = body?.media;
+  if (m && typeof m === 'object') {
+    const stamp = Date.now().toString(36);
+    const media = { ...g.media };
+    for (const k of ['cover', 'header', 'hero']) if (m[k]) media[k] = saveImage(g.id, `${k}-${stamp}`, m[k]);
+    if (Array.isArray(m.screenshots) && m.screenshots.length) media.screenshots = m.screenshots.slice(0, 6).map((x, i) => saveImage(g.id, `shot${i + 1}-${stamp}`, x));
+    patch.media = media;
+  }
   db.update(g, { ...patch, moderation: [...(g.moderation ?? []), { at: db.now(), action: 'edited', by: user.id, fields: Object.keys(patch) }] });
+  if (patch.media) await backupUploads(g.id);
   return { ok: true, game: publicGame(g) };
 });
 route('POST', '/api/games/:id/versions', async ({ user, session, params, body, ctx }) => {

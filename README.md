@@ -25,7 +25,7 @@ Locally, publishing and site reset are open to you. Every browser gets its own g
 
 **Features added since the prototype:** real accounts (email + password, Google), Stripe Checkout, signed game packages, a separate games domain, offline play from a verified local cache, publishing updates with delta downloads, and algorithmic store curation: shelves are built from player behaviour (hook, retention, engagement, conversion, reach) with a discovery window for new games. See [CREATORS.md](CREATORS.md#10-how-discovery-works). See [DEPLOY.md](DEPLOY.md) for how to switch each on.
 
-**Tests:** `npm run test:e2e` (platform), `npm run test:nightpaw` (plays through Nightpaw) `npm run test:features` (accounts, offline, updates, Stripe against a fake API, games origin, discovery) and `npm run test:ranking` (the ranking algorithm on synthetic play data). The first two need a running server; the other two start what they need.
+**Tests:** `npm run test:e2e` (platform), `npm run test:features` (accounts, offline, updates, Stripe against a fake API, games origin, discovery) and `npm run test:ranking` (the ranking algorithm on synthetic play data). The first needs a running server; the other two start what they need.
 
 **Deploying:** see [DEPLOY.md](DEPLOY.md). In short: Render Web Service, start command `node server/index.js`, and an `ADMIN_PASSWORD` environment variable. For data that survives restarts, also add a disk and set `DATA_DIR`.
 
@@ -82,10 +82,9 @@ Platform.game.reportPlaytime(); Platform.game.exit(); onPause / onResume
 
 ## Demo content
 
-- **Nightpaw** (`packages/nightpaw/1.0.0/`): a small metroidvania. A black cat with a red scarf and a sword explores 8 connected areas. It has Moth Wings (double jump) and Shadow Dash as ability gates, candle shrines that heal and save, pogo down-slashes, crawlers and wisps, a hidden heart vessel, a map (M / Tab), and a boss called the Hollow Warden. It supports keyboard, gamepad and touch, uses the SDK for saves and 6 achievements, and has a 5-minute demo. The world is authored in `samples/nightpaw/build-world.mjs`, which also checks that every opening lines up with a neighbouring room. `scripts/qa-nightpaw.mjs` plays through the whole game with real key input (21 checks).
-
 - **Voidrunner** (arcade shooter): remembers best score and furthest sector, and saves an in-progress run on quit. The title menu then offers "Resume run".
 - **Tidewater Trading Co.** (incremental): full harbor state, renameable harbor, autosave, save on exit, and offline earnings on return ("While you were away…").
+- **Nightpaw** is not bundled. It's a real listing, uploaded through Publish like any creator's game (its source and upload files live in their own project). The demo content above is sample data that is hidden on a real host.
 - **Skylark**: a sample package (`public/creator/skylark-1.0.0.zip`) for the Publish flow. Click *Use sample package* → *Publish* and it's live and playable.
 - The other released titles launch a clearly labelled **placeholder build** (it counts launches through the SDK), so the buy → library → play flow works for every game.
 - Demos run for a fixed time. Demo saves use the same slot, so **progress carries over when you buy**, including buying from inside the running game.

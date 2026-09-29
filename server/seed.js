@@ -83,6 +83,7 @@ export function seedSampleReviews() {
 //    offline verification keeps matching the files the server actually serves.
 // Published (creator-uploaded) games and versions are never touched.
 export function syncSeedCatalog() {
+  retireRemovedSeedGames();
   seedSampleReviews();
   for (const g of games) {
     const row = db.get('games', g.id);
@@ -102,6 +103,28 @@ export function syncSeedCatalog() {
     const { signature } = signBuild({ gameId: ver.gameId, version: ver.version, entry: ver.entry, buildHash, files });
     db.update(ver, { files, sizeBytes, buildHash, signature, signKeyId: currentKeyId() });
   }
+}
+
+// Sample games that were taken out of the catalog (Nightpaw moved out to be
+// uploaded through Publish like any other game) are removed from an existing
+// database along with their builds, achievements, demo purchases, saves and
+// sample reviews, so their id is free again. A game someone paid real money for
+// (a Stripe order) is left alone and a warning is logged instead.
+const GAME_TABLES = ['gameVersions', 'achievements', 'userAchievements', 'ownerships', 'orders', 'saves', 'playSessions', 'wishlists', 'reviews', 'reports'];
+export function retireRemovedSeedGames() {
+  const inCatalog = new Set(games.map((g) => g.id));
+  for (const g of db.filter('games', (x) => x.source === 'seed' && !inCatalog.has(x.id))) {
+    const paid = db.filter('orders', (o) => o.gameId === g.id && o.provider === 'stripe' && ['paid', 'refunded'].includes(o.status));
+    if (paid.length) {
+      console.warn(`[seed] ${g.id} is no longer in the sample catalog but has ${paid.length} real order(s); leaving it in place.`);
+      continue;
+    }
+    for (const t of GAME_TABLES) db.remove(t, (r) => r.gameId === g.id);
+    db.remove('games', (r) => r.id === g.id);
+    console.log(`[seed] Removed retired sample game ${g.id}`);
+  }
+  const catalogDevs = new Set(developers.map((d) => d.id));
+  db.remove('developers', (d) => !d.userId && !catalogDevs.has(d.id) && !db.all('games').some((g) => g.developerId === d.id));
 }
 
 // The original single-account demo ("Jason" with some play history). Only used with ACCOUNT_MODE=single.

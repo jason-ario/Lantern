@@ -43,8 +43,8 @@ try {
 
   // ---------- toggle ----------
   let cat = (await visitor.api('GET', '/api/catalog')).body;
-  check('Everyone: sample games are in the catalog', cat.games.some((g) => g.id === 'nightpaw' && g.sample));
-  const sampleRevs = (await visitor.api('GET', '/api/games/nightpaw/reviews')).body;
+  check('Everyone: sample games are in the catalog', cat.games.some((g) => g.id === 'voidrunner' && g.sample));
+  const sampleRevs = (await visitor.api('GET', '/api/games/voidrunner/reviews')).body;
   check('Sample games come with sample written reviews', sampleRevs.reviews.length >= 2 && sampleRevs.reviews.every((r) => r.sample));
 
   check('Non-admins cannot change the setting', (await visitor.api('PUT', '/api/admin/settings', { demoContent: 'off' })).status === 403);
@@ -52,10 +52,10 @@ try {
   check('Admin switches sample content to "admins only"', (await admin.api('PUT', '/api/admin/settings', { demoContent: 'admins' })).body?.demoContent === 'admins');
   cat = (await visitor.api('GET', '/api/catalog')).body;
   check('Admins only: players see no sample games', !cat.games.some((g) => g.sample), `${cat.games.length} games`);
-  check('Admins only: sample game pages 404 for players', (await visitor.api('GET', '/api/games/nightpaw')).status === 404);
+  check('Admins only: sample game pages 404 for players', (await visitor.api('GET', '/api/games/voidrunner')).status === 404);
   check('Admins only: sample shelves are empty for players', Object.values(cat.shelves).every((ids) => ids.length === 0));
   const adminCat = (await admin.api('GET', '/api/catalog')).body;
-  check('Admins only: admins still see sample games', adminCat.games.some((g) => g.id === 'nightpaw'));
+  check('Admins only: admins still see sample games', adminCat.games.some((g) => g.id === 'voidrunner'));
   await admin.api('PUT', '/api/admin/settings', { demoContent: 'off' });
   check('Off: admins no longer see sample games either', !(await admin.api('GET', '/api/catalog')).body.games.some((g) => g.sample));
   check('Setting is reported to clients', (await visitor.api('GET', '/api/state')).body.site?.demoContent === 'off');

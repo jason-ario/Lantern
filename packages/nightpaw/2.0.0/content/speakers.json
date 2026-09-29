@@ -1,9 +1,0 @@
-{
-  "nightpaw": { "name": "Nightpaw", "portrait": "pt_nightpaw", "pitch": 820, "voice": "squeak", "color": "#ffd45a" },
-  "tallow": { "name": "Tallow", "portrait": "pt_tallow", "pitch": 520, "voice": "soft", "color": "#ffcf7a" },
-  "nib": { "name": "Nib", "portrait": "pt_nib", "pitch": 980, "voice": "squeak", "color": "#9ad0ff" },
-  "warden": { "name": "The Hollow Warden", "portrait": "pt_warden", "pitch": 85, "voice": "deep", "color": "#ff8a9a" },
-  "mira": { "name": "Mira", "portrait": "pt_mira", "pitch": 700, "voice": "echo", "color": "#f0ecff", "italic": true },
-  "shade": { "name": "A Lost Life", "portrait": "pt_shade", "pitch": 620, "voice": "echo", "color": "#bfeaff", "italic": true },
-  "narrator": { "name": "", "pitch": 300, "voice": "soft", "italic": true }
-}

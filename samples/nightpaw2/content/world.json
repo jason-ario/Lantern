@@ -1,6 +1,0 @@
-{
-  "title": "Nightpaw",
-  "areas": ["hollows"],
-  "cutscenes": ["prologue", "hollows"],
-  "start": { "room": "well_bottom", "x": 3, "y": 15, "cutscene": "intro" }
-}

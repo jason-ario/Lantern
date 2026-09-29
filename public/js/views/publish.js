@@ -63,7 +63,7 @@ export async function render(root, _, query) {
   applyUserState(await api.state());
   if (!state.creator.canPublish) return renderLocked(root);
   if (query?.get('payouts') === 'done') toast('Payout details saved. Stripe may take a few minutes to verify them.', { kind: 'ok', timeout: 6000 });
-  const form = { pkg: null, report: null, cover: null, shots: [] };
+  const form = { pkg: null, report: null, cover: null, header: null, hero: null, shots: [] };
   root.innerHTML = `<div class="page publish">
     <div class="pub-head">
       <div><div class="eyebrow">vibe-games publish --prototype</div><h1>Ship your vibe-coded game</h1>
@@ -131,10 +131,12 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
         <section class="panel">
           <h3>Media</h3>
           <div class="fgrid">
-            <label class="f"><span>Cover / key art <small>PNG, JPG or WebP</small></span><input type="file" name="cover" accept="image/png,image/jpeg,image/webp"></label>
-            <label class="f"><span>Screenshots <small>up to 6</small></span><input type="file" name="shots" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <label class="f"><span>Cover / key art <small>portrait, 600×900 · PNG, JPG or WebP</small></span><input type="file" name="cover" accept="image/png,image/jpeg,image/webp"></label>
+            <label class="f"><span>Screenshots <small>up to 6 · 16:9</small></span><input type="file" name="shots" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <label class="f"><span>Header capsule <small>optional · 920×430</small></span><input type="file" name="header" accept="image/png,image/jpeg,image/webp"></label>
+            <label class="f"><span>Store banner <small>optional · 1920×620</small></span><input type="file" name="hero" accept="image/png,image/jpeg,image/webp"></label>
           </div>
-          <p class="muted small">Leave media empty and Vibe-Games generates placeholder key art for you. Real screenshots sell much better, though.</p>
+          <p class="muted small">Leave media empty and Vibe-Games generates placeholder key art for you. Without the wide images the cover stands in for them. Real screenshots sell much better, though.</p>
         </section>
 
         <div class="pub-actions">
@@ -248,6 +250,9 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
   f.elements.shots.addEventListener('change', async (e) => {
     form.shots = await Promise.all([...e.target.files].slice(0, 6).map((x) => readAs(x, 'dataurl')));
   });
+  for (const k of ['header', 'hero']) {
+    f.elements[k].addEventListener('change', async (e) => { const file = e.target.files[0]; form[k] = file ? await readAs(file, 'dataurl') : null; });
+  }
 
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -270,7 +275,7 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           shortDescription: val('shortDescription'), description: f.elements.description.value,
           tags: val('tags').split(',').map((x) => x.trim()).filter(Boolean),
           builtWith: pickedTools(), vibe: { prompt: val('vibePrompt'), hours: val('vibeHours') || null },
-          cover: form.cover, screenshots: form.shots, package: form.pkg,
+          cover: form.cover, header: form.header, hero: form.hero, screenshots: form.shots, package: form.pkg,
         }),
         new Promise((res) => setTimeout(res, 1800)),
       ]);
@@ -420,6 +425,11 @@ function openEdit(g, onDone) {
       <div class="f span2"><span>Built with</span><div class="tool-pick">${TOOLS.map((t) => `<label><input type="checkbox" name="tool" value="${t.id}" ${st.builtWith.includes(t.id) ? 'checked' : ''}><span class="vibe-chip" style="--c:${t.color}">${esc(t.name)}</span></label>`).join('')}</div></div>
       <label class="f span2"><span>The prompt that started it</span><textarea name="prompt" rows="2" maxlength="${MAX_PROMPT}">${esc(st.vibe?.prompt ?? '')}</textarea></label>
       <label class="f"><span>Time to build (hours)</span><input name="hours" type="number" min="0.1" step="0.5" value="${esc(st.vibe?.hours ?? '')}"></label>
+      <div class="f span2"><span>Store art <small>leave empty to keep the current images</small></span></div>
+      <label class="f"><span>Cover <small>600×900</small></span><input type="file" name="mCover" accept="image/png,image/jpeg,image/webp"></label>
+      <label class="f"><span>Screenshots <small>replaces all · up to 6</small></span><input type="file" name="mShots" accept="image/png,image/jpeg,image/webp" multiple></label>
+      <label class="f"><span>Header capsule <small>920×430</small></span><input type="file" name="mHeader" accept="image/png,image/jpeg,image/webp"></label>
+      <label class="f"><span>Store banner <small>1920×620</small></span><input type="file" name="mHero" accept="image/png,image/jpeg,image/webp"></label>
     </div>
     <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy">Save changes</button></div>
   </form>`, {
@@ -430,8 +440,15 @@ function openEdit(g, onDone) {
         e.preventDefault();
         const tools = [...f.querySelectorAll('input[name=tool]:checked')].map((i) => i.value);
         if (!tools.length) { toast('Pick at least one tool you built it with', { kind: 'error' }); return; }
+        const one = (input) => (input.files[0] ? readAs(input.files[0], 'dataurl') : null);
+        const media = {
+          cover: await one(f.mCover), header: await one(f.mHeader), hero: await one(f.mHero),
+          screenshots: await Promise.all([...f.mShots.files].slice(0, 6).map((x) => readAs(x, 'dataurl'))),
+        };
+        const hasMedia = media.cover || media.header || media.hero || media.screenshots.length;
         try {
           await api.creator.edit(g.id, {
+            ...(hasMedia ? { media } : {}),
             priceCents: +f.price.value, demo: f.demo.checked, shortDescription: f.short.value, description: f.description.value,
             tags: f.tags.value.split(',').map((x) => x.trim()).filter(Boolean), builtWith: tools.slice(0, MAX_TOOLS),
             vibe: { prompt: f.prompt.value, hours: f.hours.value || null },
