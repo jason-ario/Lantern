@@ -15,6 +15,7 @@ Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, 
 | `STRIPE_WEBHOOK_SECRET` | *(none)* | Signing secret (`whsec_…`) for the webhook endpoint `PUBLIC_URL/api/stripe/webhook`. |
 | `CURRENCY` | `usd` | Checkout currency. |
 | `CREATOR_SHARE` | `0.9` | The creators' share of each sale, shown in the creator guide and on the Publish page. `0.9` means a 90/10 split. |
+| `DEMO_CONTENT` | `everyone` locally, `off` on a real host | Sample content: the fictional demo games and their reviews. `off` hides them, `admins` shows them only to people with creator access (marked "Sample"), `everyone` shows them to all. Once an admin changes it in **Profile → Sample content**, the saved choice wins over this variable. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(none)* | Enable "Continue with Google". |
 | `GAMES_ORIGIN` | *(none)* | Serve untrusted game files from a separate domain, e.g. `https://play.vibe-games.net`. Requires `PUBLIC_URL`. |
 | `NODE_ENV` | — | Set `production` on a host. This also happens automatically on Render. |

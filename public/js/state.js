@@ -6,6 +6,7 @@ export const state = {
   user: null,
   creator: { admin: false, passwordRequired: true, enabled: false },
   features: { google: false, stripe: false, currency: 'usd', gamesOrigin: null, creatorShare: 0.9 },
+  site: { demoContent: 'off', demoVisible: false }, // sample-content setting (see server/api.js)
   offline: false,
   owned: new Set(),
   wishlist: new Set(),
@@ -28,6 +29,7 @@ export function applyUserState(s) {
   state.user = s.user;
   if (s.creator) state.creator = s.creator;
   if (s.features) state.features = s.features;
+  if (s.site) state.site = s.site;
   state.owned = new Set(s.owned);
   state.wishlist = new Set(s.wishlist);
   emit();

@@ -15,6 +15,10 @@ Everything runs from one process. `data/db.json` is created on first start.
 
 Locally, publishing and site reset are open to you. Every browser gets its own guest account; set `ACCOUNT_MODE=single` for the old shared "Jason" demo account.
 
+**Sample content vs. real content:** the fictional catalog (16 games, their ratings and a few written reviews) is *sample content*. Admins switch it between **Hidden**, **Admins only** and **Everyone** in *Profile → Sample content* (default from `DEMO_CONTENT`: shown locally, hidden on a real host). Hidden sample games disappear from the catalog, shelves, search, rankings and game pages; with nothing published yet, the store shows a "shelves are being stocked" launch page.
+
+**Player reviews:** any signed-in player who owns a game can leave one thumbs-up/down review (with optional text, editable, deletable); developers can't review their own games; admins can remove reviews. Ratings come from real reviews only (sample games add real reviews on top of their sample rating). Tests: `npm run test:content`.
+
 **Vibe-coding features:** every game declares the AI tools it was **built with** (Claude Code, Cursor, ChatGPT, Copilot, …; the list lives in `public/js/vibe.js`), plus optional **vibe metadata**: the prompt that started it and the hours it took. The store shows them on capsules and game pages ("How it was vibed"), has a *Browse by what built it* shelf, and search filters by tool (`/search?tool=claude-code`) or sorts by fastest build. The starter kit ships **`VIBE.md`**, a brief you hand to your AI assistant so it builds within the sandbox rules.
 
 **Features added since the prototype:** real accounts (email + password, Google), Stripe Checkout, signed game packages, a separate games domain, offline play from a verified local cache, publishing updates with delta downloads, and algorithmic store curation: shelves are built from player behaviour (hook, retention, engagement, conversion, reach) with a discovery window for new games. See [CREATORS.md](CREATORS.md#10-how-discovery-works). See [DEPLOY.md](DEPLOY.md) for how to switch each on.

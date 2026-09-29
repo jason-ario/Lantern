@@ -54,6 +54,14 @@ export const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY ?? '';
 export const STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET ?? '';
 export const STRIPE_API_BASE = trimSlash(env.STRIPE_API_BASE ?? 'https://api.stripe.com');
 export const CURRENCY = (env.CURRENCY ?? 'usd').toLowerCase();
+// Sample content (the fictional demo catalog and its reviews): 'off' hides it,
+// 'admins' shows it only to signed-in admins/creators, 'everyone' shows it to all.
+// Admins can change it at runtime (Profile → Site admin); that choice is stored in
+// the database and wins over this default.
+const DEMO_MODES = ['off', 'admins', 'everyone'];
+export const DEMO_CONTENT_DEFAULT = DEMO_MODES.includes(env.DEMO_CONTENT) ? env.DEMO_CONTENT : (IS_PROD ? 'off' : 'everyone');
+export const DEMO_CONTENT_MODES = DEMO_MODES;
+
 // Creator revenue share (planned payout policy): creators keep this fraction of
 // each sale's net revenue (after payment processing fees, taxes and refunds).
 export const CREATOR_SHARE = Math.min(1, Math.max(0, Number(env.CREATOR_SHARE ?? 0.9)));

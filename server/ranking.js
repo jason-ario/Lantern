@@ -181,11 +181,14 @@ function scoreGame(g, m, now) {
 }
 
 // ---------------- cache ----------------
-let cache = null;
-export function rankings({ now = Date.now(), fresh = false } = {}) {
+// includeDemo=false ranks only real games, so shelves, badges and the platform
+// averages creators compare against aren't propped up by sample data.
+const caches = new Map();
+export function rankings({ now = Date.now(), fresh = false, includeDemo = true } = {}) {
+  const cache = caches.get(includeDemo);
   if (!fresh && cache && cache.rev === db.revision() && now - cache.at < 60e3) return cache.value;
-  const value = compute(now);
-  cache = { rev: db.revision(), at: now, value };
+  const value = compute(now, includeDemo);
+  caches.set(includeDemo, { rev: db.revision(), at: now, value });
   return value;
 }
 
@@ -195,7 +198,7 @@ function groupBy(rows, key) {
   return m;
 }
 
-function compute(now) {
+function compute(now, includeDemo = true) {
   const ctx = {
     now, since: now - RANK.lookbackDays * DAY,
     usersById: new Map(db.all('users').map((u) => [u.id, u])),
@@ -206,6 +209,7 @@ function compute(now) {
   const byGame = new Map();
   for (const g of db.all('games')) {
     if (g.status !== 'released' || !g.currentVersionId) continue;
+    if (!includeDemo && g.source === 'seed') continue;
     byGame.set(g.id, scoreGame(g, gameMetrics(g, ctx), now));
   }
   const games = [...byGame.entries()].map(([id, r]) => ({ id, r, g: db.get('games', id) }));

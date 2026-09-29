@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as db from './db.js';
 import { hashDir, packageDir, readManifest } from './packages.js';
-import { developers, games, placeholderAchievements } from '../catalog/games.js';
+import { developers, games, placeholderAchievements, sampleReviews } from '../catalog/games.js';
 import { ACCOUNT_MODE, BUILTIN_PACKAGES_DIR } from './config.js';
 import { signBuild, currentKeyId } from './signing.js';
 
@@ -60,7 +60,20 @@ export function seed() {
     defs.forEach((a) => db.insert('achievements', { id: `${g.id}:${a.id}`, gameId: g.id, key: a.id, name: a.name, description: a.description }));
   }
 
+  seedSampleReviews();
   if (ACCOUNT_MODE === 'single') seedDemoUser();
+}
+
+// Fictional written reviews for the sample games (demo: true). Idempotent.
+export function seedSampleReviews() {
+  for (const [gameId, list] of Object.entries(sampleReviews)) {
+    list.forEach(([authorName, up, hours, date, text], i) => {
+      const id = `rev_sample_${gameId}_${i}`;
+      if (db.get('reviews', id)) return;
+      let h = 0; for (const c of authorName) h = (h * 31 + c.charCodeAt(0)) % 360;
+      db.insert('reviews', { id, gameId, userId: null, authorName, avatarHue: h, up, text, playtimeSeconds: Math.round(hours * 3600), demo: true, createdAt: `${date}T18:00:00.000Z`, updatedAt: null });
+    });
+  }
 }
 
 // Keeps an existing database in step with the code on every start:
@@ -70,6 +83,7 @@ export function seed() {
 //    offline verification keeps matching the files the server actually serves.
 // Published (creator-uploaded) games and versions are never touched.
 export function syncSeedCatalog() {
+  seedSampleReviews();
   for (const g of games) {
     const row = db.get('games', g.id);
     if (!row || row.source !== 'seed') continue;

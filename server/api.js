@@ -5,12 +5,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as db from './db.js';
 import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
 import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
 import { rankings, publicRank, creatorRank } from './ranking.js';
-import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE } from './config.js';
+import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES } from './config.js';
 import { hashPassword, verifyPassword, EMAIL_RE, uniqueUsername, mergeUsers, googleEnabled, googleStartUrl, googleFinish } from './auth.js';
 import { stripeEnabled, createCheckoutSession, retrieveCheckoutSession, verifyWebhook } from './payments.js';
 import { signBuild, currentKeyId, publicKey } from './signing.js';
@@ -102,8 +103,40 @@ const owns = (userId, gameId) => !!db.find('ownerships', (o) => o.userId === use
 // player's per-game id and every ranking fingerprint, so they stay as they are.
 const scopedPlayerId = (userId, gameId) => `p_${crypto.createHash('sha256').update(`${userId}:${gameId}:lantern-pepper`).digest('hex').slice(0, 16)}`;
 
+// ---------------- site settings + sample content ----------------
+// The fictional seed catalog (source 'seed') and its written reviews are "sample
+// content". Whether it is shown is a site setting: off | admins | everyone.
+const reqCtx = new AsyncLocalStorage(); // { session } for the request being handled
+function getSetting(key, fallback) { return db.find('settings', (s) => s.key === key)?.value ?? fallback; }
+function setSetting(key, value) {
+  const row = db.find('settings', (s) => s.key === key);
+  if (row) db.update(row, { value, updatedAt: db.now() }); else db.insert('settings', { key, value, updatedAt: db.now() });
+}
+const demoMode = () => getSetting('demoContent', DEMO_CONTENT_DEFAULT);
+function demoVisible(session = reqCtx.getStore()?.session) {
+  const mode = demoMode();
+  return mode === 'everyone' || (mode === 'admins' && isAdmin(session));
+}
+const isSample = (g) => g?.source === 'seed';
+const hiddenGame = (g) => isSample(g) && !demoVisible();
+const visibleRankings = () => rankings({ includeDemo: demoVisible() });
+
 function requireGame(id) {
-  return db.get('games', id) ?? fail(404, 'Game not found');
+  const g = db.get('games', id);
+  if (!g || hiddenGame(g)) fail(404, 'Game not found');
+  return g;
+}
+
+// Review score. Real reviews always count. Sample games start from their fictional
+// aggregate (catalog rating) and real reviews are added on top of it.
+function ratingFor(g) {
+  const real = db.filter('reviews', (r) => r.gameId === g.id && !r.demo);
+  const up = real.filter((r) => r.up).length;
+  if (isSample(g) && g.rating) {
+    const count = g.rating.count + real.length;
+    return { pct: Math.round((g.rating.pct * g.rating.count + up * 100) / count), count };
+  }
+  return real.length ? { pct: Math.round((up / real.length) * 100), count: real.length } : null;
 }
 
 function canUseGame(user, game) {
@@ -116,7 +149,7 @@ function publicGame(g) {
   return {
     id: g.id, title: g.title, developer: dev ? { id: dev.id, name: dev.name, location: dev.location } : null,
     priceCents: g.priceCents, tags: g.tags, features: g.features, shortDescription: g.shortDescription,
-    description: g.description, releaseDate: g.releaseDate, status: g.status, rating: g.rating, stats: g.stats,
+    description: g.description, releaseDate: g.releaseDate, status: g.status, rating: ratingFor(g), sample: isSample(g),
     featured: g.featured, demo: g.demo, logo: g.logo, media: g.media, blurb: g.blurb, source: g.source,
     builtWith: g.builtWith ?? [], vibe: g.vibe ?? null,
     achievementCount: db.filter('achievements', (a) => a.gameId === g.id).length,
@@ -125,7 +158,7 @@ function publicGame(g) {
       sdk: ver.sdk, runtime: ver.runtime, input: ver.input, releasedAt: ver.releasedAt, placeholder: ver.placeholder, notes: ver.notes,
     } : null,
     updatedAt: ver?.releasedAt ?? null,
-    rank: publicRank(rankings().byGame.get(g.id)),
+    rank: publicRank(visibleRankings().byGame.get(g.id)),
   };
 }
 
@@ -143,8 +176,9 @@ function userState(user, session) {
     user: { id: user.id, username: user.username, displayName: user.displayName, avatarHue: user.avatarHue, memberSince: user.memberSince, guest: !!user.guest, email: user.email ?? null, hasPassword: !!user.passwordHash, google: !!user.googleId },
     features: { google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE },
     creator: { admin: isAdmin(session), passwordRequired: !ADMIN_OPEN, enabled: ADMIN_OPEN || !!ADMIN_PASSWORD },
-    owned: db.filter('ownerships', (o) => o.userId === user.id).map((o) => o.gameId),
-    wishlist: db.filter('wishlists', (w) => w.userId === user.id).map((w) => w.gameId),
+    site: { demoContent: demoMode(), demoVisible: demoVisible(session) },
+    owned: db.filter('ownerships', (o) => o.userId === user.id && !hiddenGame(db.get('games', o.gameId))).map((o) => o.gameId),
+    wishlist: db.filter('wishlists', (w) => w.userId === user.id && !hiddenGame(db.get('games', w.gameId))).map((w) => w.gameId),
   };
 }
 
@@ -155,8 +189,8 @@ const route = (method, pattern, handler) => routes.push({ method, re: new RegExp
 route('GET', '/api/state', ({ user, session }) => userState(user, session));
 
 route('GET', '/api/catalog', () => {
-  const games = db.all('games').map(publicGame);
-  const { shelves, thresholds } = rankings();
+  const games = db.all('games').filter((g) => !hiddenGame(g)).map(publicGame);
+  const { shelves, thresholds } = visibleRankings();
   const counts = {};
   const toolCounts = {};
   games.forEach((g) => {
@@ -208,7 +242,7 @@ route('DELETE', '/api/wishlist/:id', ({ user, session, params }) => {
 route('GET', '/api/wishlist', ({ user, session }) => db.filter('wishlists', (w) => w.userId === user.id));
 
 // ----- library -----
-route('GET', '/api/library', ({ user, session }) => db.filter('ownerships', (o) => o.userId === user.id).map((o) => ({
+route('GET', '/api/library', ({ user, session }) => db.filter('ownerships', (o) => o.userId === user.id && !hiddenGame(db.get('games', o.gameId))).map((o) => ({
   gameId: o.gameId, acquiredAt: o.acquiredAt, source: o.source, ...playStats(user.id, o.gameId),
 })));
 
@@ -308,7 +342,7 @@ route('POST', '/api/games/:id/achievements/:key', ({ user, session, params }) =>
 
 // ----- profile -----
 route('GET', '/api/profile', ({ user, session }) => {
-  const owned = db.filter('ownerships', (o) => o.userId === user.id);
+  const owned = db.filter('ownerships', (o) => o.userId === user.id && !hiddenGame(db.get('games', o.gameId)));
   const perGame = owned.map((o) => ({ gameId: o.gameId, ...playStats(user.id, o.gameId) }));
   const played = perGame.filter((p) => p.playtimeSeconds > 0);
   const recentAch = db.filter('userAchievements', (u) => u.userId === user.id)
@@ -664,14 +698,14 @@ function salesSummary(gameId) {
 }
 route('GET', '/api/creator/games', ({ user, session }) => {
   requireAdmin(session);
-  return db.all('games').filter((g) => canUpdateGame(user, session, g) && g.currentVersionId).map((g) => {
+  return db.all('games').filter((g) => canUpdateGame(user, session, g) && g.currentVersionId && !hiddenGame(g)).map((g) => {
     const vers = db.filter('gameVersions', (v) => v.gameId === g.id).sort((a, b) => (semverGt(a.version, b.version) ? -1 : 1));
     return {
       id: g.id, title: g.title, media: g.media, source: g.source, priceCents: g.priceCents, mine: g.publishedBy === user.id,
       placeholder: !!db.get('gameVersions', g.currentVersionId)?.placeholder,
       owners: db.filter('ownerships', (o) => o.gameId === g.id && o.source !== 'developer').length,
       sales: salesSummary(g.id),
-      ranking: creatorRank(rankings().byGame.get(g.id), rankings().platform),
+      ranking: creatorRank(visibleRankings().byGame.get(g.id), visibleRankings().platform),
       currentVersion: db.get('gameVersions', g.currentVersionId)?.version,
       versions: vers.map((v) => ({ version: v.version, releasedAt: v.releasedAt, notes: v.notes, sizeBytes: v.sizeBytes, fileCount: v.files.length, placeholder: v.placeholder })),
     };
@@ -707,6 +741,81 @@ route('POST', '/api/games/:id/versions', ({ user, session, params, body }) => {
   };
 });
 
+// ----- reviews -----
+// Any signed-in (non-guest) player who owns a game can review it, except its developer.
+// One review per player per game (editing replaces it). Sample games also carry
+// fictional written reviews (demo: true), shown only while sample content is visible.
+const REVIEW_MAX = 4000;
+function reviewEligibility(user, g) {
+  const own = db.find('ownerships', (o) => o.userId === user.id && o.gameId === g.id);
+  if (own?.source === 'developer' || g.publishedBy === user.id) return { ok: false, reason: 'developer' };
+  if (user.guest) return { ok: false, reason: 'guest' };
+  if (!own) return { ok: false, reason: 'not_owned' };
+  return { ok: true, reason: null };
+}
+function publicReview(r, viewer) {
+  const u = r.userId ? db.get('users', r.userId) : null;
+  return {
+    id: r.id, up: r.up, text: r.text, createdAt: r.createdAt, updatedAt: r.updatedAt ?? null, sample: !!r.demo,
+    author: u ? { name: u.displayName, avatarHue: u.avatarHue } : { name: r.authorName ?? 'Player', avatarHue: r.avatarHue ?? 280 },
+    playtimeSeconds: r.userId ? playStats(r.userId, r.gameId).playtimeSeconds : (r.playtimeSeconds ?? 0),
+    mine: !!viewer && r.userId === viewer.id,
+  };
+}
+route('GET', '/api/games/:id/reviews', ({ user, params, url }) => {
+  const g = requireGame(params.id);
+  const filter = url.searchParams.get('filter'); // 'up' | 'down' | null
+  const rows = db.filter('reviews', (r) => r.gameId === g.id && (!r.demo || demoVisible()) && (filter === 'up' ? r.up : filter === 'down' ? !r.up : true))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const mine = db.find('reviews', (r) => r.gameId === g.id && r.userId === user.id);
+  return {
+    rating: ratingFor(g), total: rows.length,
+    reviews: rows.slice(0, 50).map((r) => publicReview(r, user)),
+    mine: mine ? publicReview(mine, user) : null,
+    eligibility: reviewEligibility(user, g),
+  };
+});
+route('PUT', '/api/games/:id/review', ({ user, params, body }) => {
+  const g = requireGame(params.id);
+  const el = reviewEligibility(user, g);
+  if (!el.ok) fail(403, { guest: 'Create an account to write reviews', not_owned: 'Only players who own this game can review it', developer: 'You can’t review your own game' }[el.reason]);
+  if (typeof body?.up !== 'boolean') fail(400, 'Pick thumbs up or thumbs down');
+  const text = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
+  if (text.length > REVIEW_MAX) fail(400, `Reviews can be up to ${REVIEW_MAX} characters`);
+  limit(`review:${user.id}`, 20, 10 * 60e3);
+  const existing = db.find('reviews', (r) => r.gameId === g.id && r.userId === user.id);
+  const row = existing
+    ? db.update(existing, { up: body.up, text, updatedAt: db.now() })
+    : db.insert('reviews', { id: db.id('rev'), gameId: g.id, userId: user.id, up: body.up, text, demo: false, createdAt: db.now(), updatedAt: null });
+  return { review: publicReview(row, user), rating: ratingFor(g) };
+});
+route('DELETE', '/api/games/:id/review', ({ user, params }) => {
+  const g = requireGame(params.id);
+  db.remove('reviews', (r) => r.gameId === g.id && r.userId === user.id);
+  return { ok: true, rating: ratingFor(g) };
+});
+// Moderation: admins can remove any review.
+route('DELETE', '/api/reviews/:id', ({ session, params }) => {
+  requireAdmin(session);
+  const r = db.get('reviews', params.id) ?? fail(404, 'Review not found');
+  db.remove('reviews', (x) => x.id === r.id);
+  return { ok: true };
+});
+
+// ----- site settings (admin) -----
+route('GET', '/api/admin/settings', ({ session }) => {
+  requireAdmin(session);
+  return { demoContent: demoMode(), demoContentDefault: DEMO_CONTENT_DEFAULT, modes: DEMO_CONTENT_MODES };
+});
+route('PUT', '/api/admin/settings', ({ user, session, body }) => {
+  requireAdmin(session);
+  if (body?.demoContent !== undefined) {
+    if (!DEMO_CONTENT_MODES.includes(body.demoContent)) fail(400, `demoContent must be one of ${DEMO_CONTENT_MODES.join(', ')}`);
+    setSetting('demoContent', body.demoContent);
+  }
+  return { demoContent: demoMode(), state: userState(user, session) };
+});
+
 export async function handleApi(req, res, url, body, ctx) {
   for (const r of routes) {
     if (r.method !== req.method) continue;
@@ -714,7 +823,7 @@ export async function handleApi(req, res, url, body, ctx) {
     if (!m) continue;
     const { user, session } = authenticate(req, res, ctx);
     const params = Object.fromEntries(Object.entries(m.groups ?? {}).map(([k, v]) => [k, decodeURIComponent(v)]));
-    return r.handler({ user, session, params, body, url, ctx, res });
+    return reqCtx.run({ session }, () => r.handler({ user, session, params, body, url, ctx, res }));
   }
   fail(404, 'No such endpoint');
 }

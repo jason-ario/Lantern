@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { state, toggleWishlist, onChange } from '../state.js';
-import { esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
+import { openAuth } from './auth.js';
+import { avatar, esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { openCheckout } from './checkout.js';
 
@@ -45,6 +46,7 @@ export async function render(root, [id], query) {
   root.innerHTML = `${storeBar()}
   <div class="game-hero" style="background-image:url('${esc(g.media.hero)}')"></div>
   <div class="page game-page">
+    ${g.sample ? `<div class="sample-banner"><b>Sample listing</b> This is a fictional demo game used to show off the store${state.site.demoContent === 'admins' ? ' (visible to admins only)' : ''}. Its ratings and reviews are sample data.</div>` : ''}
     <div class="crumbs"><a href="/store" data-link>All Games</a> › <a href="/search?tag=${encodeURIComponent(g.tags[0])}" data-link>${esc(g.tags[0])}</a> › <span>${esc(g.title)}</span></div>
     <div class="gp-head">
       <h1>${esc(g.title)}</h1>
@@ -58,7 +60,6 @@ export async function render(root, [id], query) {
       <aside class="gp-side">
         <div class="gp-capsule" style="background-image:url('${esc(g.media.header)}')">${logo(g, 'md')}</div>
         <p class="gp-short">${esc(g.shortDescription)}</p>
-        ${g.builtWith?.length ? `<div class="gp-vibe"><div class="gp-vibe-label">// built with${vibeTime(g) ? ` · ${esc(vibeTime(g))}` : ''}</div>${vibeChips(g.builtWith, { max: 5, link: true })}</div>` : ''}
         ${g.rank?.badges?.length ? `<div class="gp-badges">${rankBadges(g, 3)}</div>` : ''}
         <dl class="gp-facts">
           <dt>All reviews</dt><dd><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</dd>
@@ -76,6 +77,11 @@ export async function render(root, [id], query) {
       <div class="gp-main">
         <div id="buyArea">${buyBlock()}</div>
 
+        <section class="gp-sec">
+          <h3>About this game</h3>
+          ${g.description.map((p) => `<p>${esc(p)}</p>`).join('')}
+        </section>
+
         ${g.vibe || g.builtWith?.length ? `<section class="vibe-box"><div class="vibe-box-in">
           <h3>How it was vibed</h3>
           ${g.vibe?.prompt ? `<div class="vibe-prompt">${esc(g.vibe.prompt)}</div><p class="muted small vibe-cap">The prompt that started it all, straight from the developer.</p>` : ''}
@@ -86,10 +92,6 @@ export async function render(root, [id], query) {
           </div>
         </div></section>` : ''}
 
-        <section class="gp-sec">
-          <h3>About this game</h3>
-          ${g.description.map((p) => `<p>${esc(p)}</p>`).join('')}
-        </section>
 
         <section class="gp-sec">
           <h3>Achievements <span class="muted">· ${g.achievements.length}${state.owned.has(g.id) || unlocked ? ` · ${unlocked} unlocked` : ''}</span></h3>
@@ -108,13 +110,9 @@ export async function render(root, [id], query) {
           </div>
         </section>
 
-        <section class="gp-sec">
-          <h3>Reviews</h3>
-          ${g.rating ? `<div class="rev">
-            <div class="rev-score"><div class="${r.cls} rev-label">${r.label}</div><div class="muted">${g.rating.pct}% of ${g.rating.count.toLocaleString()} reviews are positive</div></div>
-            <div class="rev-bar"><div style="width:${g.rating.pct}%"></div></div>
-            <p class="muted small">Written reviews land with community features. Ratings shown are placeholder data for this prototype.</p>
-          </div>` : '<p class="muted">No reviews yet.</p>'}
+        <section class="gp-sec" id="reviews">
+          <h3>Player reviews</h3>
+          <div id="revBody"><div class="spinner"></div></div>
         </section>
       </div>
 
@@ -161,7 +159,60 @@ export async function render(root, [id], query) {
   };
   wishHead();
 
-  const rerender = () => { $('#buyArea', root).innerHTML = buyBlock(); wishHead(); };
+  // ---------- reviews ----------
+  let revFilter = null, editing = false;
+  const revBody = $('#revBody', root);
+  const reviewCard = (x) => `<article class="review ${x.up ? 'up' : 'down'}${x.mine ? ' mine' : ''}">
+    <div class="rv-who">${avatar({ displayName: x.author.name, avatarHue: x.author.avatarHue }, 34)}<div><b>${esc(x.author.name)}</b><small>${hours(x.playtimeSeconds)} on record</small></div></div>
+    <div class="rv-main">
+      <div class="rv-head"><span class="rv-thumb">${x.up ? '👍 Recommended' : '👎 Not recommended'}</span><span class="muted small">${date(x.createdAt)}${x.updatedAt ? ' · edited' : ''}</span>${x.sample ? '<span class="sample-pill">Sample</span>' : ''}${state.creator.admin && !x.mine && !x.sample ? `<button class="link-btn rv-mod" data-mod="${esc(x.id)}">Remove</button>` : ''}</div>
+      ${x.text ? `<p>${esc(x.text).replace(/\n/g, '<br>')}</p>` : '<p class="muted small">No written review.</p>'}
+    </div>
+  </article>`;
+  const composer = (mine) => `<form class="rv-form" id="rvForm">
+    <div class="rv-form-h"><b>${mine ? 'Edit your review' : `Review ${esc(g.title)}`}</b><span class="muted small">Would you recommend it?</span></div>
+    <div class="rv-pick">
+      <label><input type="radio" name="up" value="1" ${mine?.up !== false ? 'checked' : ''}><span>👍 Yes</span></label>
+      <label><input type="radio" name="up" value="0" ${mine?.up === false ? 'checked' : ''}><span>👎 No</span></label>
+    </div>
+    <textarea name="text" rows="4" maxlength="4000" placeholder="What did you like or dislike? Other players will see this.">${esc(mine?.text ?? '')}</textarea>
+    <div class="rv-actions">${mine ? '<button type="button" class="btn btn-ghost btn-sm" id="rvCancel">Cancel</button><button type="button" class="link-btn" id="rvDelete">Delete review</button>' : ''}<button class="btn btn-buy">${mine ? 'Save review' : 'Post review'}</button></div>
+  </form>`;
+  const loadReviews = async () => {
+    let d;
+    try { d = await api.reviews.list(g.id, revFilter); } catch (err) { revBody.innerHTML = `<p class="muted">${esc(err.message)}</p>`; return; }
+    const rr = ratingLabel(d.rating);
+    const el = d.eligibility;
+    const cta = d.mine && !editing ? ''
+      : el.ok ? composer(editing ? d.mine : null)
+      : el.reason === 'guest' && state.owned.has(g.id) ? '<div class="rv-cta"><span>You own this game. Create a free account to review it.</span><button class="btn btn-buy btn-sm" id="rvSignup">Create account</button></div>'
+      : el.reason === 'not_owned' ? '<div class="rv-cta muted small">Only players who own this game can review it.</div>' : '';
+    revBody.innerHTML = `
+      ${d.rating ? `<div class="rev">
+        <div class="rev-score"><div class="${rr.cls} rev-label">${rr.label}</div><div class="muted">${d.rating.pct}% of ${d.rating.count.toLocaleString()} ${d.rating.count === 1 ? 'review is' : 'reviews are'} positive</div></div>
+        <div class="rev-bar"><div style="width:${d.rating.pct}%"></div></div>
+      </div>` : '<p class="muted">No reviews yet. Owners can be the first.</p>'}
+      ${d.mine && !editing ? `<div class="rv-mine-h"><span>Your review</span><button class="btn btn-ghost btn-sm" id="rvEdit">Edit</button></div>${reviewCard(d.mine)}` : ''}
+      ${cta}
+      ${d.total || revFilter ? `<div class="rv-filter">${[[null, 'All'], ['up', '👍 Positive'], ['down', '👎 Negative']].map(([v, l]) => `<button data-rf="${v ?? ''}" class="${revFilter === v ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
+      <div class="rv-list">${d.reviews.filter((x) => !x.mine).map(reviewCard).join('') || (d.total ? '' : revFilter ? '<p class="muted small">No reviews match.</p>' : '')}</div>`;
+    const f = $('#rvForm', revBody);
+    if (f) f.onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = f.querySelector('.btn-buy'); btn.disabled = true;
+      try { await api.reviews.save(g.id, f.elements.up.value === '1', f.elements.text.value); editing = false; toast('Thanks! Your review is live', { kind: 'ok' }); loadReviews(); }
+      catch (err) { btn.disabled = false; toast(esc(err.message), { kind: 'error' }); }
+    };
+    $('#rvEdit', revBody)?.addEventListener('click', () => { editing = true; loadReviews(); });
+    $('#rvCancel', revBody)?.addEventListener('click', () => { editing = false; loadReviews(); });
+    $('#rvDelete', revBody)?.addEventListener('click', async () => { try { await api.reviews.remove(g.id); editing = false; toast('Review deleted'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } });
+    $('#rvSignup', revBody)?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => loadReviews() }));
+    revBody.querySelectorAll('[data-rf]').forEach((b) => { b.onclick = () => { revFilter = b.dataset.rf || null; loadReviews(); }; });
+    revBody.querySelectorAll('[data-mod]').forEach((b) => { b.onclick = async () => { try { await api.reviews.moderate(b.dataset.mod); toast('Review removed'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } }; });
+  };
+  loadReviews();
+
+  const rerender = () => { $('#buyArea', root).innerHTML = buyBlock(); wishHead(); loadReviews(); };
   const off = onChange(rerender);
   root.onclick = async (e) => {
     if (e.target.closest('[data-buy]')) openCheckout(g);

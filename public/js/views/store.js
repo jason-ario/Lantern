@@ -1,5 +1,5 @@
 import { state, released, shelf, byDiscovery } from '../state.js';
-import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, rankBadges, compact, vibeChips, vibeTime, bytes, $, $$ } from '../ui.js';
+import { esc, logo, capsule, cover, price, priceTag, ratingLabel, tagChips, date, icons, rankBadges, compact, vibeTime, genreTags, bytes, $, $$ } from '../ui.js';
 import { TOOL_BY_ID } from '../vibe.js';
 import { go } from '../nav.js';
 
@@ -11,7 +11,7 @@ export function storeBar(active = 'home', q = '') {
     <a href="/search?sort=top" data-link class="${active === 'top' ? 'on' : ''}">Top sellers</a>
     <a href="/search?sort=played" data-link class="${active === 'played' ? 'on' : ''}">Most played</a>
     <form class="store-search" role="search" id="storeSearch">
-      <input name="q" type="search" placeholder="Search games, tags or tools" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
+      <input name="q" type="search" placeholder="Search games or genres" value="${esc(q)}" autocomplete="off" aria-label="Search the store">
       <button aria-label="Search">${icons.search}</button>
     </form>
   </div></div>`;
@@ -43,7 +43,7 @@ function listRow(g) {
     <div class="lr-art" style="background-image:url('${esc(g.media.header)}')"></div>
     <div class="lr-body">
       <div class="lr-title">${esc(g.title)}</div>
-      <div class="lr-tags">${g.tags.slice(0, 4).map(esc).join(', ')}</div>${g.builtWith?.length ? `<div class="lr-vibe">${vibeChips(g.builtWith, { max: 3, size: 'sm' })}</div>` : ''}
+      <div class="lr-tags">${genreTags(g.tags, 4)}</div>
       <div class="lr-sub">${g.status === 'coming_soon' ? `Releases ${date(g.releaseDate)}` : `<span class="${r.cls}">${r.label}</span>`}${g.demo ? ' · <span class="demo-inline">Instant demo</span>' : ''} ${rankBadges(g, 1)}</div>
     </div>
     <div class="lr-price">${priceTag(g, { compact: true })}</div>
@@ -56,7 +56,6 @@ function preview(g) {
   return `<div class="pv-title">${esc(g.title)}</div>
     <div class="pv-meta"><span class="${r.cls}">${r.label}</span>${g.rating ? ` <span class="muted">(${g.rating.count.toLocaleString()})</span>` : ''}</div>
     <div class="pv-tags">${g.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
-    ${g.vibe?.prompt ? `<div class="pv-prompt"><span>&gt;</span> ${esc(g.vibe.prompt)}</div>` : ''}
     ${g.media.screenshots.slice(0, 4).map((s) => `<div class="pv-shot" style="background-image:url('${esc(s)}')"></div>`).join('')}`;
 }
 
@@ -80,11 +79,42 @@ export async function render(root) {
   const quickest = released().filter((g) => g.vibe?.hours).sort((a, b) => a.vibe.hours - b.vibe.hours)[0];
   const heroGame = feat[0];
 
+  // Launch state: no games on the shelves yet (e.g. sample content hidden, nothing published).
+  if (!released().length) {
+    const soon = state.games.filter((g) => g.status === 'coming_soon');
+    root.innerHTML = `${storeBar('home')}
+    <div class="page store">
+      <section class="vg-hero">
+        <div>
+          <span class="vg-hero-kicker"><i></i>The shelves are being stocked</span>
+          <h1>Prompted into existence.<br><em>Polished enough to pay&nbsp;for.</em></h1>
+          <p>Vibe-Games is the premium store for games built with AI. The first games are on their way. Made one yourself? Be the first on the shelf.</p>
+          <div class="vg-cta">
+            <a class="btn btn-buy btn-lg" href="/developers" data-link>Ship your vibe-coded game</a>
+            <a class="btn btn-ghost btn-lg" href="/publish" data-link>Open Publish</a>
+          </div>
+        </div>
+        <div class="vg-term" aria-hidden="true">
+          <div class="vg-term-h"><span></span><span></span><span></span><small>~/vibe-games</small></div>
+          <div class="vg-term-b">
+            <div class="ln"><span class="pr">&gt;</span> open the store</div>
+            <div class="ln dim">  …stocking shelves</div>
+            <div class="ln ok">✓ checkout, cloud saves, offline play ready</div>
+            <div class="ln"><span class="pr">&gt;</span> <a href="/developers" data-link>waiting for your game</a><span class="caret"></span></div>
+          </div>
+        </div>
+      </section>
+      ${soon.length ? `<section class="block"><div class="sec-h"><h2>Still cooking</h2></div><div class="capsule-grid">${soon.slice(0, 8).map((g) => capsule(g)).join('')}</div></section>` : ''}
+    </div>`;
+    bindStoreBar(root);
+    return null;
+  }
+
   root.innerHTML = `${storeBar('home')}
   <div class="page store">
     <section class="vg-hero">
       <div>
-        <span class="vg-hero-kicker"><i></i>${released().length} vibe-coded games · play any of them in one click</span>
+        <span class="vg-hero-kicker"><i></i>${released().length} vibe-coded ${released().length === 1 ? "game" : "games"} · play ${released().length === 1 ? "it" : "any of them"} in one click</span>
         <h1>Prompted into existence.<br><em>Polished enough to pay&nbsp;for.</em></h1>
         <p>Vibe-Games is the premium store for games built with AI. Every game here was made by a human with a vision and a coding assistant with no sleep schedule. No installs, no launchers: hit play and you're in.</p>
         <div class="vg-cta">
@@ -124,7 +154,7 @@ export async function render(root) {
         ${demos.map((g) => `<div class="instant-card">
           <a class="ic-art" href="/app/${esc(g.id)}" data-link style="background-image:url('${esc(g.media.hero)}')">${logo(g, 'md')}</a>
           <div class="ic-body">
-            <div><div class="ic-title">${esc(g.title)}</div><div class="ic-sub">${esc(g.blurb ?? '')} · ${g.demo.minutes}-min demo · ${g.version ? bytes(g.version.sizeBytes) : ''}</div>${g.builtWith?.length ? `<div class="ic-vibe">${vibeChips(g.builtWith, { max: 2, size: 'sm' })}</div>` : ''}</div>
+            <div><div class="ic-title">${esc(g.title)}</div><div class="ic-sub">${esc(g.blurb ?? '')} · ${g.demo.minutes}-min demo · ${g.version ? bytes(g.version.sizeBytes) : ''}</div>${g.tags?.length ? `<div class="ic-tags">${genreTags(g.tags, 2)}</div>` : ''}</div>
             <div class="ic-actions">
               ${state.owned.has(g.id)
                 ? `<a class="btn btn-play" href="/play/${esc(g.id)}" data-link>${icons.play} Play</a>`
@@ -165,18 +195,18 @@ export async function render(root) {
       <div class="capsule-grid">${rec.games.map((g) => capsule(g)).join('')}</div>
     </section>` : ''}
 
-    ${tools.length ? `<section class="block">
-      <div class="sec-h"><h2>Browse by what built it</h2><span class="sec-note">Every game lists the AI tools behind it${quickest ? `. Fastest build: <a href="/app/${esc(quickest.id)}" data-link>${esc(quickest.title)}</a>, in ${esc(vibeTime(quickest))}` : ''}</span></div>
-      <div class="tool-tiles">${tools.map((t) => { const tool = TOOL_BY_ID.get(t.id); return `<a class="tool-tile" href="/search?tool=${encodeURIComponent(t.id)}" data-link style="--c:${tool.color}"><i></i><b>${esc(tool.name)}</b><small>${t.count} ${t.count === 1 ? 'game' : 'games'}</small></a>`; }).join('')}</div>
-    </section>` : ''}
-
     <section class="block">
-      <div class="sec-h"><h2>Browse by tag</h2></div>
+      <div class="sec-h"><h2>Browse by genre</h2></div>
       <div class="tag-tiles">${topTags.map((t) => {
         const g = released().find((x) => x.tags.includes(t.name)) ?? state.games[0];
         return `<a class="tag-tile" href="/search?tag=${encodeURIComponent(t.name)}" data-link style="background-image:url('${esc(g.media.header)}')"><span>${esc(t.name)}</span><small>${t.count} games</small></a>`;
       }).join('')}</div>
     </section>
+
+    ${tools.length ? `<section class="block">
+      <div class="sec-h"><h2>For the curious: what built it</h2><span class="sec-note">Every game lists the AI tools behind it${quickest ? `. Fastest build: <a href="/app/${esc(quickest.id)}" data-link>${esc(quickest.title)}</a>, in ${esc(vibeTime(quickest))}` : ''}</span></div>
+      <div class="tool-tiles">${tools.map((t) => { const tool = TOOL_BY_ID.get(t.id); return `<a class="tool-tile" href="/search?tool=${encodeURIComponent(t.id)}" data-link style="--c:${tool.color}"><i></i><b>${esc(tool.name)}</b><small>${t.count} ${t.count === 1 ? 'game' : 'games'}</small></a>`; }).join('')}</div>
+    </section>` : ''}
   </div>`;
   bindStoreBar(root);
 
@@ -195,7 +225,6 @@ export async function render(root) {
       <div class="fs-shots">${g.media.screenshots.slice(0, 4).map((s) => `<div style="background-image:url('${esc(s)}')"></div>`).join('')}</div>
       <div class="fs-status">${state.owned.has(g.id) ? 'In your library' : g.rank?.players >= 10 ? `${compact(g.rank.players)} players this month` : 'Now available'} ${rankBadges(g, 2)}</div>
       <div class="fs-tags">${tagChips(g.tags, 4)}</div>
-      ${g.builtWith?.length ? `<div class="fs-vibe"><small>built with</small>${vibeChips(g.builtWith, { max: 3, size: 'sm' })}${vibeTime(g) ? `<small>in ${esc(vibeTime(g))}</small>` : ''}</div>` : ''}
       <div class="fs-foot"><span class="${r.cls}">${r.label}</span>${g.demo ? '<span class="demo-inline">Instant demo</span>' : ''}${priceTag(g)}</div>`;
     $$('#featDots button', root).forEach((b, j) => b.classList.toggle('on', j === fi));
   };

@@ -1108,3 +1108,43 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .tabs button { white-space: nowrap; letter-spacing: .06em; padding: 10px 12px; }
   .sec-h { flex-wrap: wrap; row-gap: 4px; }
 }
+
+/* genre pills: the consumer-facing labels on cards and lists */
+.genre { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font: 500 11.5px/1.5 var(--ui); color: var(--text-2); background: #ffffff0d; border: 1px solid var(--line-2); white-space: nowrap; }
+.meta-tags { display: flex; gap: 5px; padding: 0 10px 10px; overflow: hidden; }
+.ic-tags, .res-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.lr-tags { display: flex; gap: 5px; flex-wrap: wrap; margin: 3px 0 2px; }
+
+/* ---------- sample content + reviews ---------- */
+.sample-banner { margin: 14px 0 0; padding: 10px 14px; border-radius: var(--r); background: #ffc85714; border: 1px solid #ffc85755; color: var(--text-2); font-size: 13px; }
+.sample-banner b { color: var(--mixed); margin-right: 8px; font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.sample-pill { font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--mixed); border: 1px solid #ffc85766; border-radius: 999px; padding: 1px 7px; }
+.rv-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.review { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.review.mine { border-color: #ff3ea566; }
+.rv-who { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.rv-who b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-who small { color: var(--text-3); font-size: 12px; }
+.rv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.rv-thumb { font-weight: 600; font-size: 14px; }
+.review.up .rv-thumb { color: var(--pos); } .review.down .rv-thumb { color: var(--red); }
+.review p { margin: 0; color: var(--text-2); line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
+.rv-mod { margin-left: auto; }
+.rv-mine-h { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 8px; font: 600 12px var(--mono); color: var(--hot-2); }
+.rv-form { margin-top: 14px; padding: 16px; background: var(--panel); border: 1px solid #ff3ea544; border-radius: var(--r); display: flex; flex-direction: column; gap: 10px; }
+.rv-form-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.rv-form textarea { width: 100%; resize: vertical; }
+.rv-pick { display: flex; gap: 8px; }
+.rv-pick input { position: absolute; opacity: 0; pointer-events: none; }
+.rv-pick span { display: inline-flex; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line-2); cursor: pointer; font-weight: 600; }
+.rv-pick input:checked + span { border-color: var(--hot); background: #ff3ea51a; }
+.rv-pick input:focus-visible + span { outline: 2px solid var(--hot); outline-offset: 2px; }
+.rv-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.rv-cta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding: 12px 14px; background: var(--panel); border: 1px dashed var(--line-2); border-radius: var(--r); }
+.rv-filter { display: flex; gap: 6px; margin-top: 16px; }
+.rv-filter button { background: none; border: 1px solid var(--line-2); color: var(--text-2); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.rv-filter button.on { border-color: var(--hot); color: var(--text); background: #ff3ea514; }
+.seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 999px; margin: 6px 0 8px; }
+.seg button { background: none; border: 0; color: var(--text-2); padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.seg button.on { background: var(--grad-hot); color: #fff; }
+@media (max-width: 640px) { .review { grid-template-columns: minmax(0, 1fr); gap: 8px; } }

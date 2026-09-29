@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 export const TABLES = [
   'users', 'authSessions', 'developers', 'games', 'gameVersions', 'achievements',
   'ownerships', 'wishlists', 'saves', 'userAchievements', 'playSessions', 'orders',
+  'reviews', 'settings',
 ];
 
 let file = null;
@@ -31,7 +32,9 @@ export function open(dbFile, seedFn) {
 
 export function reset(seedFn) {
   rev++;
+  const keep = data?.settings ?? []; // site settings survive a site reset
   data = Object.fromEntries(TABLES.map((t) => [t, []]));
+  data.settings = keep;
   seedFn?.();
   flush();
 }

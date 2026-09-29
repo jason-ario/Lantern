@@ -16,6 +16,7 @@
     "test:nightpaw": "node scripts/qa-nightpaw.mjs",
     "test:ranking": "node scripts/test-ranking.mjs",
     "test:features": "node scripts/test-features.mjs",
+    "test:content": "node scripts/test-content.mjs",
     "gen:signing-key": "node scripts/gen-signing-key.mjs",
     "build:starter": "node scripts/build-starter.mjs"
   }

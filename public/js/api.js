@@ -67,6 +67,12 @@ export const api = {
     list: () => request('GET', '/api/wishlist'),
   },
   library: () => request('GET', '/api/library'),
+  reviews: {
+    list: (id, filter) => request('GET', `/api/games/${enc(id)}/reviews${filter ? `?filter=${enc(filter)}` : ''}`),
+    save: (id, up, text) => request('PUT', `/api/games/${enc(id)}/review`, { up, text }),
+    remove: (id) => request('DELETE', `/api/games/${enc(id)}/review`),
+    moderate: (reviewId) => request('DELETE', `/api/reviews/${enc(reviewId)}`),
+  },
   profile: () => request('GET', '/api/profile'),
 
   // Runtime-facing services. The runtime host receives these as an injected
@@ -100,5 +106,7 @@ export const api = {
     login: (password) => request('POST', '/api/admin/login', { password }),
     logout: () => request('POST', '/api/admin/logout'),
     resetSite: () => request('POST', '/api/admin/reset'),
+    settings: () => request('GET', '/api/admin/settings'),
+    saveSettings: (patch) => request('PUT', '/api/admin/settings', patch),
   },
 };

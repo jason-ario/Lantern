@@ -1,5 +1,5 @@
 import { state, byDiscovery } from '../state.js';
-import { esc, price, priceTag, ratingLabel, date, rankBadges, vibeChips, vibeTime, $ } from '../ui.js';
+import { esc, price, priceTag, ratingLabel, date, rankBadges, genreTags, $ } from '../ui.js';
 import { TOOL_BY_ID } from '../vibe.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { go } from '../nav.js';
@@ -45,7 +45,7 @@ export async function render(root, _, query) {
         const r = ratingLabel(g.rating);
         return `<a class="result" href="/app/${esc(g.id)}" data-link>
           <span class="res-art" style="background-image:url('${esc(g.media.header)}')"></span>
-          <span class="res-t"><b>${esc(g.title)} ${rankBadges(g, 2)}</b><small>${g.tags.slice(0, 4).map(esc).join(' · ')}</small>${g.builtWith?.length ? `<span class="res-vibe">${vibeChips(g.builtWith, { max: 3, size: 'sm' })}${vibeTime(g) ? `<small>⏱ ${esc(vibeTime(g))}</small>` : ''}</span>` : ''}</span>
+          <span class="res-t"><b>${esc(g.title)} ${rankBadges(g, 2)}</b><span class="res-tags">${genreTags(g.tags, 4)}</span></span>
           <span class="res-date muted">${date(g.releaseDate)}</span>
           <span class="res-rating ${r.cls}" title="${r.label}">${g.rating ? `${g.rating.pct}%` : '—'}</span>
           <span class="res-price">${priceTag(g, { compact: true })}</span>
@@ -58,17 +58,17 @@ export async function render(root, _, query) {
         ${[['Any price', null], ['Free', 0], ['Under $5', 500], ['Under $10', 1000], ['Under $15', 1500]].map(([l, v]) => `<a class="filter ${String(maxPrice ?? '') === String(v ?? '') ? 'on' : ''}" href="${link({ max: v })}" data-link>${l}</a>`).join('')}
       </div>
       <div class="panel">
-        <h3>Built with</h3>
-        <div class="tag-cloud">${state.tools.map((t) => { const x = TOOL_BY_ID.get(t.id); return x ? `<a class="tag ${t.id === tool ? 'on' : ''}" href="${link({ tool: t.id === tool ? null : t.id })}" data-link><span class="tool-dot" style="--c:${x.color}"></span>${esc(x.name)} <small>${t.count}</small></a>` : ''; }).join('')}</div>
-      </div>
-      <div class="panel">
         <h3>Options</h3>
         <a class="filter ${demo ? 'on' : ''}" href="${link({ demo: demo ? null : '1' })}" data-link>Has instant demo</a>
         <a class="filter ${hideOwned ? 'on' : ''}" href="${link({ hideOwned: hideOwned ? null : '1' })}" data-link>Hide games I own</a>
       </div>
       <div class="panel">
-        <h3>Narrow by tag</h3>
+        <h3>Narrow by genre</h3>
         <div class="tag-cloud">${state.tags.map((t) => `<a class="tag ${t.name === tag ? 'on' : ''}" href="${link({ tag: t.name === tag ? null : t.name })}" data-link>${esc(t.name)} <small>${t.count}</small></a>`).join('')}</div>
+      </div>
+      <div class="panel">
+        <h3>Made with <small class="muted">(AI tools)</small></h3>
+        <div class="tag-cloud">${state.tools.map((t) => { const x = TOOL_BY_ID.get(t.id); return x ? `<a class="tag ${t.id === tool ? 'on' : ''}" href="${link({ tool: t.id === tool ? null : t.id })}" data-link><span class="tool-dot" style="--c:${x.color}"></span>${esc(x.name)} <small>${t.count}</small></a>` : ''; }).join('')}</div>
       </div>
     </aside>
   </div>`;

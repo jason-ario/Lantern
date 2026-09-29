@@ -264,6 +264,66 @@ const VIBES = {
 };
 for (const g of games) Object.assign(g, VIBES[g.id] ?? { builtWith: [], vibe: null });
 
+// Fictional written reviews for the sample games (shown only while sample content
+// is visible). [author, thumbs up?, hours played, date, text]
+export const sampleReviews = {
+  nightpaw: [
+    ['mothlight', true, 6.2, '2026-09-26', 'The cat feels incredible to control. Wall jumps, the pogo slash, the little ear twitch when you land. I finished it in one sitting and went straight back for the missing lives.'],
+    ['Quill & Kettle', true, 4.8, '2026-09-25', 'Storybook cutscenes are gorgeous and the Hollow Warden fight is tough but fair. Wish it were twice as long.'],
+    ['dashbuffer', false, 1.4, '2026-09-27', 'Lovely art but the map screen needs work. Got lost in the Hollows for twenty minutes looking for one crack in a wall.'],
+  ],
+  voidrunner: [
+    ['sector_nine', true, 11.5, '2026-09-14', 'Launches instantly, plays at 144fps on my old laptop, and the "one more run" pull is real. Furthest sector: 23.'],
+    ['arcade_ghost', true, 3.1, '2026-09-18', 'Pure score-attack joy. The synth palette alone is worth the price.'],
+    ['kiwi.exe', false, 0.9, '2026-09-20', 'Fun for an evening, but there are only a few enemy types. Needs more variety to keep me coming back.'],
+  ],
+  tidewater: [
+    ['harbormaster', true, 22.0, '2026-08-30', 'I keep it open in a tab all day. Coming back to the "while you were away" screen is the best part of my morning.'],
+    ['numbergoesup', true, 8.4, '2026-09-02', 'Cozy, relaxed and surprisingly deep once the cannery unlocks. The lighthouse upgrade is a great moment.'],
+  ],
+  'hollow-lantern': [
+    ['ashen_verse', true, 31.2, '2026-06-20', 'Every upgrade costing a memory is such a brilliant idea. I hesitated before every single one.'],
+    ['nightcrawler', true, 18.9, '2026-07-02', 'Hand-drawn cathedral is breathtaking. Boss design is top tier.'],
+    ['lowbattery', false, 5.0, '2026-07-11', 'Beautiful, but the backtracking in act two dragged for me.'],
+  ],
+  driftglass: [
+    ['prism_pal', true, 14.3, '2026-07-22', 'No text, no timers, just light and glass. My favourite puzzle game of the year.'],
+    ['sunday_solver', true, 9.0, '2026-08-01', 'Perfect to wind down with. The later refraction puzzles made me feel like a genius.'],
+  ],
+  kepler: [
+    ['fleetadmiral', true, 16.7, '2026-05-10', 'A 4X I can actually finish on a weeknight. Every decision stings in a good way.'],
+    ['orbit_decay', true, 12.2, '2026-05-19', 'Tense and tight. The dying star as a timer is inspired.'],
+    ['spreadsheet_sam', false, 3.5, '2026-06-01', 'Wanted more depth in diplomacy. It\'s good, just a bit thin for 4X veterans.'],
+  ],
+  ashfall: [
+    ['cinderwalker', true, 9.8, '2026-09-05', 'Every expedition really does feel different. Crafting is simple but satisfying.'],
+    ['ruststorm', false, 2.2, '2026-09-08', 'Difficulty spikes hard after the third biome. Needs balancing.'],
+  ],
+  'night-market': [
+    ['noodle_noir', true, 7.5, '2026-08-06', 'Never leaving the noodle stand is a genius constraint. Every customer is a tiny mystery.'],
+    ['byte_detective', true, 6.1, '2026-08-12', 'Great writing, and I didn\'t see the courier twist coming.'],
+  ],
+  pinewatch: [
+    ['headphones_on', true, 1.6, '2026-08-03', 'Ninety minutes of pure dread. Play it at night with headphones like it says. Trust me.'],
+    ['treeline', true, 1.5, '2026-08-05', 'The sound design is the scariest thing I\'ve heard in a game this year.'],
+  ],
+  'cold-summit': [
+    ['ropeburn', true, 20.4, '2026-04-20', 'Tight, fair, brutal. I died 2,000 times and loved every one.'],
+    ['casual_carl', false, 0.8, '2026-04-25', 'Way too hard for me, but I can tell it\'s well made.'],
+  ],
+  hearthfield: [
+    ['meadowmaker', true, 58.3, '2026-03-30', 'The way the villagers slowly tell you about your grandmother made me cry twice.'],
+    ['turnip_tycoon', true, 41.0, '2026-04-08', 'Endlessly cozy. Cooking system is lovely.'],
+  ],
+  ironbark: [
+    ['gridlock', true, 13.3, '2026-09-21', 'Soldiers remembering who left them behind is a mechanic I\'ll never forget.'],
+    ['flanker', false, 4.2, '2026-09-24', 'Solid tactics, but the UI hides too much information about terrain bonuses.'],
+  ],
+  'pocket-orbit': [
+    ['slingshot', true, 2.3, '2026-09-23', 'The daily seed has become a thing in our group chat. Perfect phone game.'],
+  ],
+};
+
 // Placeholder achievements for titles without real builds.
 export const placeholderAchievements = [
   { id: 'first_steps', name: 'First Steps', description: 'Launch the game for the first time.' },

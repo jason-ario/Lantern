@@ -75,13 +75,15 @@ export function vibeChips(ids, { max = 3, link = false, size = '' } = {}) {
 }
 export const vibeTime = (g) => buildTime(g.vibe?.hours);
 
+// Genre pills: the consumer-facing way to label a game on cards and lists.
+export const genreTags = (tags, max = 3) => (tags ?? []).slice(0, max).map((t) => `<span class="genre">${esc(t)}</span>`).join('');
+
 export function capsule(g, { size = 'md', showPrice = true, badge = true } = {}) {
   const demo = g.demo && !state.owned.has(g.id) && badge ? '<span class="badge-demo">▶ Instant demo</span>' : '';
-  const t = vibeTime(g);
   return `<a class="capsule capsule-${size}" href="/app/${esc(g.id)}" data-link>
     <div class="art" style="background-image:url('${esc(g.media.header)}')">${logo(g, size === 'lg' ? 'lg' : 'sm')}${demo}${badge && g.rank?.badges?.length ? `<span class="art-badges">${rankBadges(g, 1)}</span>` : ''}</div>
     <div class="meta"><div class="t">${esc(g.title)}</div>${showPrice ? priceTag(g, { compact: true }) : ''}</div>
-    ${g.builtWith?.length || t ? `<div class="meta-vibe">${vibeChips(g.builtWith, { max: 2, size: 'sm' })}${t ? `<span title="Time to build">⏱ ${esc(t)}</span>` : ''}</div>` : ''}
+    ${g.tags?.length ? `<div class="meta-tags">${genreTags(g.tags, 3)}</div>` : ''}
   </a>`;
 }
 

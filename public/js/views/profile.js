@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, boot, applyUserState } from '../state.js';
+import { state, boot, applyUserState, loadCatalog } from '../state.js';
 import { esc, avatar, hours, ago, date, icons, modal, toast, price, bytes } from '../ui.js';
 import { go } from '../nav.js';
 import { openAuth, signOut } from './auth.js';
@@ -67,6 +67,14 @@ export async function render(root, _, query) {
             <button class="btn btn-ghost btn-sm" id="clearDl">Remove all downloads</button>
           </section>
           ${state.creator.admin ? `<section class="panel">
+            <h3>Sample content</h3>
+            <p class="muted small">The fictional demo games and their reviews. Hide them for launch, preview them yourself, or show them to everyone.</p>
+            <div class="seg" id="demoSeg" role="radiogroup" aria-label="Sample content">
+              ${[['off', 'Hidden'], ['admins', 'Admins only'], ['everyone', 'Everyone']].map(([v, l]) => `<button type="button" role="radio" data-demo="${v}" aria-checked="${state.site.demoContent === v}" class="${state.site.demoContent === v ? 'on' : ''}">${l}</button>`).join('')}
+            </div>
+            <p class="muted small" id="demoNote">${state.site.demoContent === 'off' ? 'Players only see real games and real reviews.' : state.site.demoContent === 'admins' ? 'Only admins see sample games (marked “Sample”). Players see real content only.' : 'Everyone sees sample games, marked “Sample” on their store pages.'}</p>
+          </section>
+          <section class="panel">
             <h3>Site admin</h3>
             <p class="muted small">Restores the seeded catalog for everyone and removes every published game, account and save.</p>
             <button class="btn btn-danger" id="resetSite">Reset entire site</button>
@@ -100,6 +108,14 @@ export async function render(root, _, query) {
   }));
   root.querySelector('#resetMine').onclick = () => confirmBox('Reset your progress?', 'Your library, saves, playtime, achievements and wishlist on this account are deleted.', 'Reset my progress', async () => {
     applyUserState(await api.account.resetProgress()); toast('Your progress was reset'); go('/store');
+  });
+  root.querySelector('#demoSeg')?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-demo]'); if (!b || b.classList.contains('on')) return;
+    try {
+      const r = await api.admin.saveSettings({ demoContent: b.dataset.demo });
+      applyUserState(r.state); await loadCatalog();
+      toast(`Sample content: <b>${esc(b.textContent)}</b>`, { kind: 'ok' }); go('/profile');
+    } catch (err) { toast(esc(err.message), { kind: 'error' }); }
   });
   root.querySelector('#resetSite')?.addEventListener('click', () => confirmBox('Reset the entire site?', 'Everyone’s accounts, purchases and saves are deleted and every published game is removed.', 'Reset site', async () => {
     await api.admin.resetSite(); await boot(); toast('Site reset'); go('/store');
