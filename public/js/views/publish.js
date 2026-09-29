@@ -491,6 +491,18 @@ function openUpdate(g, onDone) {
         el.querySelector('#updGo').disabled = !r.ok;
       };
       el.querySelector('#updFile').onchange = async (e) => { const file = e.target.files[0]; if (file) use(file.name, await readAs(file, 'buffer')); };
+      // drag & drop onto the drop area (clicking it opens the file picker)
+      const drop = el.querySelector('#updDrop');
+      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+      drop.addEventListener('drop', async (e) => {
+        e.preventDefault(); drop.classList.remove('over');
+        const file = e.dataTransfer?.files?.[0];
+        if (file) use(file.name, await readAs(file, 'buffer'));
+      });
+      // a file dropped anywhere else in the dialog shouldn't make the browser open it
+      el.addEventListener('dragover', (e) => e.preventDefault());
+      el.addEventListener('drop', (e) => e.preventDefault());
       el.querySelector('#updSample')?.addEventListener('click', async () => {
         f.elements.notes.value = 'The dusk update: Skylark now flies at sunset, and there is a new achievement — High Flyer — for flying 1,000 metres.';
         use('skylark-1.1.0.zip', await (await fetch('/creator/skylark-1.1.0.zip')).arrayBuffer());
