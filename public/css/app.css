@@ -1245,3 +1245,11 @@ body.in-game .site-footer { display: none; }
   .adm-table { display: block; overflow-x: auto; }
 }
 .sample-banner a { color: var(--play-2); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Sign-up gate (signed-out visitors on play / library / wishlist / profile) */
+.nav-auth { display: flex; align-items: center; gap: 6px; }
+.nav-auth .nav-signin { margin-right: 0; }
+.acct-gate { max-width: 560px; margin: 0 auto; }
+.acct-gate .gate-cover { width: 100%; max-width: 460px; aspect-ratio: 460 / 215; object-fit: cover; border-radius: var(--r); margin: 0 auto 18px; display: block; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+@media (max-width: 640px) { .nav-auth .nav-signup { display: none; } }
+.acct-gate .gate-back { margin-top: 18px; }

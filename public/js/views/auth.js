@@ -1,5 +1,5 @@
-// Sign in / create account modal. Guests keep everything: creating an account
-// upgrades the guest in place; signing in merges the guest's library into the account.
+// Sign in / create account modal. Browsing the store is open to everyone; playing,
+// buying, wishlisting, reviewing and publishing need an account (requireAccount).
 import { api } from '../api.js';
 import { state, applyUserState, loadCatalog } from '../state.js';
 import { esc, modal, toast, icons } from '../ui.js';
@@ -14,7 +14,7 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
     <div class="auth-tabs"><button data-tab="signup">Create account</button><button data-tab="login">Sign in</button></div>
     ${state.features.google ? `<a class="btn btn-ghost auth-google" href="/api/auth/google/start">${GOOGLE_ICON} Continue with Google</a><div class="auth-or"><span>or</span></div>` : ''}
     <form id="authForm" class="auth-form" novalidate>
-      <label class="f" data-only="signup"><span>Display name</span><input name="displayName" maxlength="24" autocomplete="nickname" value="${esc(state.user?.guest ? state.user.displayName : '')}"></label>
+      <label class="f" data-only="signup"><span>Display name</span><input name="displayName" maxlength="24" autocomplete="nickname" value=""></label>
       <label class="f"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
       <label class="f"><span>Password</span><input name="password" type="password" minlength="8" required></label>
       <p class="auth-note muted small" id="authNote"></p>
@@ -33,9 +33,7 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
         el.querySelector('#authTitle').textContent = m === 'signup' ? 'Create your Vibe-Games account' : 'Welcome back';
         el.querySelector('#authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
         f.elements.password.autocomplete = m === 'signup' ? 'new-password' : 'current-password';
-        el.querySelector('#authNote').textContent = state.user?.guest && state.owned.size
-          ? (m === 'signup' ? `Your ${state.owned.size} game${state.owned.size === 1 ? '' : 's'}, saves and achievements move into the new account.` : 'Anything you did as a guest on this browser is added to your account.')
-          : (m === 'signup' ? 'Your library, cloud saves and purchases follow you to any browser — and to the desktop app later.' : '');
+        el.querySelector('#authNote').textContent = m === 'signup' ? 'Free forever. Your library, cloud saves and purchases follow you to any browser.' : '';
       };
       el.querySelector('.auth-tabs').onclick = (e) => { if (e.target.dataset.tab) setMode(e.target.dataset.tab); };
       el.querySelectorAll('[data-close-modal]').forEach((a) => a.addEventListener('click', () => close()));
@@ -82,5 +80,13 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
 export async function signOut() {
   await api.auth.logout();
   navigator.serviceWorker?.controller?.postMessage({ type: 'clear-api-cache' });
-  location.href = '/store'; // fresh guest session
+  location.href = '/store';
+}
+
+// Run `then` now if someone is signed in; otherwise ask them to sign up first and
+// run it right after. Returns true when already signed in.
+export function requireAccount(reason, then) {
+  if (state.user) { then?.(); return true; }
+  openAuth({ mode: 'signup', reason, onDone: () => then?.() });
+  return false;
 }

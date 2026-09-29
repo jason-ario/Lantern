@@ -17,11 +17,10 @@ export async function render(root, _, query) {
         ${avatar(p.user, 112)}
         <div class="pf-id">
           <h1><span id="pfName">${esc(p.user.displayName)}</span> <button class="link-btn" id="rename">Edit name</button></h1>
-          <div class="muted">${p.user.guest ? 'Guest account on this browser' : `@${esc(p.user.username)}${p.user.email ? ` · ${esc(p.user.email)}` : ''}`} · Member since ${date(p.user.memberSince)}</div>
+          <div class="muted">@${esc(p.user.username)}${p.user.email ? ` · ${esc(p.user.email)}` : ''} · Member since ${date(p.user.memberSince)}</div>
         </div>
       </div>
-      ${!p.user.guest && p.user.email && !p.user.emailVerified ? `<div class="guest-cta verify-cta"><div><b>Confirm your email.</b><span class="muted">We sent a link to ${esc(p.user.email)}. Confirming lets you publish games and recover your account.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="resendVerify">Resend link</button></div></div>` : ''}
-      ${p.user.guest ? `<div class="guest-cta"><div><b>Keep your library forever.</b><span class="muted">You're playing as a guest — your games and saves live in this browser's cookie. Create a free account and they follow you everywhere.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="ctaSignup">Create account</button><button class="btn btn-ghost" id="ctaLogin">Sign in</button></div></div>` : ''}
+      ${p.user.email && !p.user.emailVerified ? `<div class="guest-cta verify-cta"><div><b>Confirm your email.</b><span class="muted">We sent a link to ${esc(p.user.email)}. Confirming lets you publish games and recover your account.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="resendVerify">Resend link</button></div></div>` : ''}
       <div class="pf-stats">
         <div><b>${s.owned}</b><span>Games owned</span></div>
         <div><b>${s.played}</b><span>Games played</span></div>
@@ -48,11 +47,9 @@ export async function render(root, _, query) {
           </section>
           <section class="panel">
             <h3>Account</h3>
-            ${p.user.guest
-              ? '<p class="muted small">Guest account tied to this browser. Clearing cookies or switching browsers starts a new one.</p>'
-              : `<dl class="kv acct-kv"><dt>Email</dt><dd>${esc(p.user.email ?? '—')}</dd><dt>Sign-in</dt><dd>${[p.user.hasPassword ? 'Password' : '', p.user.google ? 'Google' : ''].filter(Boolean).join(' + ') || '—'}</dd></dl>`}
+            ${`<dl class="kv acct-kv"><dt>Email</dt><dd>${esc(p.user.email ?? '—')}</dd><dt>Sign-in</dt><dd>${[p.user.hasPassword ? 'Password' : '', p.user.google ? 'Google' : ''].filter(Boolean).join(' + ') || '—'}</dd></dl>`}
             <div class="acct-actions">
-              ${p.user.guest ? '' : `${p.user.hasPassword ? '<button class="btn btn-ghost btn-sm" id="changePw">Change password</button>' : ''}<button class="btn btn-ghost btn-sm" id="signOut">Sign out</button>`}
+              ${p.user.hasPassword ? '<button class="btn btn-ghost btn-sm" id="changePw">Change password</button>' : ''}<button class="btn btn-ghost btn-sm" id="signOut">Sign out</button>
               <button class="btn btn-ghost btn-sm" id="resetMine">Reset my progress</button>
 
             </div>
@@ -91,8 +88,6 @@ export async function render(root, _, query) {
   packages.usage().then((u) => { const el = root.querySelector('#dlUsage'); if (el) el.textContent = u.games ? `${u.games} game${u.games === 1 ? '' : 's'} downloaded on this device · ${bytes(u.bytes)}. Each build is signature-checked before it runs.` : 'No games downloaded on this device yet.'; });
   root.querySelector('#autoDl').onchange = (e) => { try { localStorage.setItem('vibe.autoDownload', e.target.checked ? '1' : '0'); } catch { /* ignore */ } };
   root.querySelector('#clearDl').onclick = async () => { await packages.clearAll(); toast('Removed all downloaded games from this device'); go('/profile'); };
-  root.querySelector('#ctaSignup')?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => go('/profile') }));
-  root.querySelector('#ctaLogin')?.addEventListener('click', () => openAuth({ mode: 'login', onDone: () => go('/profile') }));
   root.querySelector('#signOut')?.addEventListener('click', () => signOut());
   root.querySelector('#changePw')?.addEventListener('click', () => modal(`<form class="confirm"><h3>Change password</h3>
     <label class="f"><span>Current password</span><input type="password" name="current" autocomplete="current-password" required></label>

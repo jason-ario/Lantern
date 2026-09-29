@@ -29,6 +29,8 @@ export const RANK = {
   windowPlayers: 200,
   windowDays: 30,
   promoteAt: 45,
+  featuredNewDays: 30,    // games added in the last N days lead the Featured carousel…
+  featuredNewSlots: 3,    // …up to this many of them, newest first
   priorWeight: 20,        // pseudo-players pulling new games towards the neutral prior
   hookMinutes: 15,
   ipCap: 3,
@@ -231,11 +233,16 @@ function compute(now, includeDemo = true) {
   const hourSeed = Math.floor(now / 3600e3);
   const jitter = (id) => { let h = hourSeed; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 1000; };
   const recentRelease = (x) => now - Date.parse(`${x.g.releaseDate}T00:00:00Z`) < 21 * DAY;
+  // When a game actually arrived on the store: approval/publish time for uploaded
+  // games, release date for the sample catalog.
+  const addedAt = (x) => Date.parse(x.g.source === 'published' && x.g.createdAt ? x.g.createdAt : `${x.g.releaseDate}T00:00:00Z`) || 0;
+  const justAdded = [...visible].filter((x) => now - addedAt(x) < RANK.featuredNewDays * DAY).sort((a, b) => addedAt(b) - addedAt(a)).slice(0, RANK.featuredNewSlots);
 
   const trending = [...visible].filter((x) => x.r.status !== 'listed').sort(by((x) => x.r.trend));
   const gems = promoted.filter((x) => x.r.quality >= 55 && x.r.players28 < reachMedian / 2).sort(by((x) => x.r.quality));
   const shelves = {
-    featured: ids([...promoted].sort(by((x) => 0.7 * x.r.score + 0.3 * x.r.trend)), 6),
+    // Newest arrivals lead the carousel, then the best-performing promoted games.
+    featured: ids([...justAdded, ...[...promoted].sort(by((x) => 0.7 * x.r.score + 0.3 * x.r.trend)).filter((x) => !justAdded.includes(x))], 6),
     // Games in their discovery window first (fewest players first, rotated hourly), then recent releases.
     new: ids([
       ...visible.filter((x) => x.r.status === 'new').sort((a, b) => a.r.window.players - b.r.window.players || jitter(a.id) - jitter(b.id)),

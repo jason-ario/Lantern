@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, toggleWishlist, onChange } from '../state.js';
-import { openAuth } from './auth.js';
+import { openAuth, requireAccount } from './auth.js';
 import { avatar, esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, modal, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { openCheckout } from './checkout.js';
@@ -190,7 +190,7 @@ export async function render(root, [id], query) {
     const el = d.eligibility;
     const cta = d.mine && !editing ? ''
       : el.ok ? composer(editing ? d.mine : null)
-      : el.reason === 'guest' && state.owned.has(g.id) ? '<div class="rv-cta"><span>You own this game. Create a free account to review it.</span><button class="btn btn-buy btn-sm" id="rvSignup">Create account</button></div>'
+      : el.reason === 'account' ? '<div class="rv-cta"><span>Own this game? Sign in to review it.</span><button class="btn btn-buy btn-sm" id="rvSignup">Sign in</button></div>'
       : el.reason === 'not_owned' ? '<div class="rv-cta muted small">Only players who own this game can review it.</div>' : '';
     revBody.innerHTML = `
       ${d.rating ? `<div class="rev">
@@ -211,19 +211,20 @@ export async function render(root, [id], query) {
     $('#rvEdit', revBody)?.addEventListener('click', () => { editing = true; loadReviews(); });
     $('#rvCancel', revBody)?.addEventListener('click', () => { editing = false; loadReviews(); });
     $('#rvDelete', revBody)?.addEventListener('click', async () => { try { await api.reviews.remove(g.id); editing = false; toast('Review deleted'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } });
-    $('#rvSignup', revBody)?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => loadReviews() }));
+    $('#rvSignup', revBody)?.addEventListener('click', () => openAuth({ mode: 'login', onDone: () => loadReviews() }));
     revBody.querySelectorAll('[data-rf]').forEach((b) => { b.onclick = () => { revFilter = b.dataset.rf || null; loadReviews(); }; });
-    revBody.querySelectorAll('[data-report-review]').forEach((b) => { b.onclick = () => openReport('review', b.dataset.reportReview, 'this review'); });
+    revBody.querySelectorAll('[data-report-review]').forEach((b) => { b.onclick = () => requireAccount('Sign in to report a review.', () => openReport('review', b.dataset.reportReview, 'this review')); });
     revBody.querySelectorAll('[data-mod]').forEach((b) => { b.onclick = async () => { try { await api.reviews.moderate(b.dataset.mod); toast('Review removed'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } }; });
   };
   loadReviews();
-  $('#reportGame', root)?.addEventListener('click', () => openReport('game', g.id, g.title));
+  $('#reportGame', root)?.addEventListener('click', () => requireAccount('Sign in to report a game.', () => openReport('game', g.id, g.title)));
 
   const rerender = () => { $('#buyArea', root).innerHTML = buyBlock(); wishHead(); loadReviews(); };
   const off = onChange(rerender);
   root.onclick = async (e) => {
     if (e.target.closest('[data-buy]')) openCheckout(g);
     if (e.target.closest('[data-wish]')) {
+      if (!state.user) { requireAccount(`Create a free account to wishlist ${g.title}.`, () => root.querySelector('[data-wish]')?.click()); return; }
       try {
         const on = await toggleWishlist(g.id);
         toast(on ? `${icons.heart} Added <b>${esc(g.title)}</b> to your wishlist` : `Removed <b>${esc(g.title)}</b> from your wishlist`);

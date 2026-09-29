@@ -47,7 +47,8 @@ try {
   const sampleRevs = (await visitor.api('GET', '/api/games/voidrunner/reviews')).body;
   check('Sample games come with sample written reviews', sampleRevs.reviews.length >= 2 && sampleRevs.reviews.every((r) => r.sample));
 
-  check('Non-admins cannot change the setting', (await visitor.api('PUT', '/api/admin/settings', { demoContent: 'off' })).status === 403);
+  check('Non-admins cannot change the setting', [401, 403].includes((await visitor.api('PUT', '/api/admin/settings', { demoContent: 'off' })).status));
+  await admin.api('POST', '/api/auth/signup', { email: `admin${Date.now()}@example.com`, password: 'password123', displayName: 'Admin' }); // admin password unlocks a signed-in account
   await admin.api('POST', '/api/admin/login', { password: 'letmein' });
   check('Admin switches sample content to "admins only"', (await admin.api('PUT', '/api/admin/settings', { demoContent: 'admins' })).body?.demoContent === 'admins');
   cat = (await visitor.api('GET', '/api/catalog')).body;
@@ -72,7 +73,7 @@ try {
   check('Real game shows while sample content is off', cat.games.length === 1 && cat.games[0].id === id && cat.games[0].rating === null);
 
   let r = (await visitor.api('GET', `/api/games/${id}/reviews`)).body;
-  check('Guests cannot review', r.eligibility.reason === 'guest');
+  check('Signed-out visitors cannot review', r.eligibility.reason === 'account' && (await visitor.api('PUT', `/api/games/${id}/review`, { up: true, text: 'x' })).status === 401);
   const reviewer = await player();
   await reviewer.api('POST', '/api/auth/signup', { email: `r${Date.now()}@example.com`, password: 'password123', displayName: 'Reviewer' });
   check('Signed-in non-owners cannot review', (await reviewer.api('PUT', `/api/games/${id}/review`, { up: true, text: 'x' })).status === 403);
@@ -88,7 +89,7 @@ try {
   check('Game page shows the player’s review', (await reviewer.page.textContent('#reviews')).includes('Changed my mind.'));
 
   const rid = (await visitor.api('GET', `/api/games/${id}/reviews`)).body.reviews[0].id;
-  check('Players cannot moderate', (await visitor.api('DELETE', `/api/reviews/${rid}`)).status === 403);
+  check('Players cannot moderate', (await reviewer.api('DELETE', `/api/reviews/${rid}`)).status === 403 && (await visitor.api('DELETE', `/api/reviews/${rid}`)).status === 401);
   check('Admins can remove a review', (await admin.api('DELETE', `/api/reviews/${rid}`)).status === 200 && (await visitor.api('GET', `/api/games/${id}/reviews`)).body.total === 0);
 
   await admin.api('PUT', '/api/admin/settings', { demoContent: 'everyone' });

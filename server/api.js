@@ -42,20 +42,15 @@ function limit(key, max, windowMs) {
 setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.start > 3600e3) buckets.delete(k); }, 600e3).unref();
 
 // ---------------- identity ----------------
-// Guest accounts: the first visit from a browser creates a guest user. The
-// session token lives in an HttpOnly, SameSite=Strict cookie scoped to /api, so
-// neither platform JS nor game code can read it. (Real sign-in comes later.)
-const ADJ = ['Neon', 'Cosmic', 'Chill', 'Glitchy', 'Turbo', 'Lucky', 'Velvet', 'Midnight', 'Electric', 'Sunny', 'Hyper', 'Sleepy', 'Clever', 'Retro', 'Dreamy', 'Starlit'];
-const NOUN = ['Prompt', 'Sprite', 'Pixel', 'Comet', 'Otter', 'Fox', 'Byte', 'Wizard', 'Cat', 'Robot', 'Moth', 'Synth', 'Rocket', 'Owl', 'Glitch', 'Wave'];
-function createGuest() {
-  const n = crypto.randomInt(ADJ.length * NOUN.length);
-  return db.insert('users', {
-    id: db.id('usr'), username: `guest-${crypto.randomBytes(3).toString('hex')}`,
-    displayName: `${ADJ[n % ADJ.length]} ${NOUN[Math.floor(n / ADJ.length)]}`,
-    avatarHue: crypto.randomInt(360), memberSince: db.now(), guest: true,
-  });
-}
-
+// Accounts only: browsing the store is open to everyone, but playing, buying,
+// wishlisting, reviewing and publishing need a signed-in account (see PUBLIC routes).
+// The session token lives in an HttpOnly, SameSite=Strict cookie scoped to /api, so
+// neither platform JS nor game code can read it. A visitor gets a cookie only
+// when they sign up or sign in.
+//
+// Older builds created anonymous "guest" users. Their sessions are still read so
+// signing up/in from that browser merges the guest's library into the account,
+// but a guest counts as signed out everywhere else.
 export function authenticate(req, res, ctx) {
   const cookie = req.headers.cookie ?? '';
   const sid = /(?:^|;\s*)vibe_sid=([a-f0-9]{48})/.exec(cookie)?.[1];
@@ -68,20 +63,15 @@ export function authenticate(req, res, ctx) {
       `vibe_sid=${legacySid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`,
       `lantern_sid=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${ctx.secure ? '; Secure' : ''}`,
     ]);
-    return { user: existing, session: sess };
+    return existing.guest ? { user: null, session: sess } : { user: existing, session: sess };
   }
-  let user;
   if (ACCOUNT_MODE === 'single') {
-    user = db.get('users', DEFAULT_USER_ID);
+    // Local demo mode: everyone is the seeded demo account.
+    let user = db.get('users', DEFAULT_USER_ID);
     if (!user) { seedDemoUser(); user = db.get('users', DEFAULT_USER_ID); }
-  } else {
-    limit(`guest:${ctx.ip}`, 30, 10 * 60e3);
-    user = createGuest();
+    return { user, session: startSession(res, user.id, ctx) };
   }
-  const newSid = crypto.randomBytes(24).toString('hex');
-  const session = db.insert('authSessions', { id: newSid, userId: user.id, admin: false, createdAt: db.now() });
-  res.setHeader('Set-Cookie', `vibe_sid=${newSid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
-  return { user, session };
+  return { user: null, session: null };
 }
 
 function startSession(res, userId, ctx) {
@@ -110,8 +100,8 @@ function requireAdmin(session) {
 }
 // Why a user can't publish yet (null = they can).
 function publishBlocker(user, session) {
+  if (!user || user.guest) return 'account';
   if (ADMIN_OPEN || isAdmin(session)) return null;
-  if (user.guest) return 'account';
   if (!emailVerified(user)) return 'verify';
   if (user.creator?.status === 'suspended') return 'suspended';
   if (!isCreator(user)) return 'join';
@@ -218,10 +208,18 @@ function playStats(userId, gameId) {
   return { playtimeSeconds: seconds, lastPlayedAt: last, sessions: sessions.length, achievements: { unlocked, total } };
 }
 
+const siteFeatures = () => ({ google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE, requireApproval: requireApproval(), legal: LEGAL_VERSIONS });
 function userState(user, session) {
+  if (!user) return {
+    user: null,
+    features: siteFeatures(),
+    creator: { admin: false, creator: false, canPublish: false, blocker: 'account', devOpen: ADMIN_OPEN, passwordLogin: !!ADMIN_PASSWORD, agreementVersion: null },
+    site: { demoContent: demoMode(), demoVisible: demoVisible(session) },
+    owned: [], wishlist: [],
+  };
   return {
     user: { id: user.id, username: user.username, displayName: user.displayName, avatarHue: user.avatarHue, memberSince: user.memberSince, guest: !!user.guest, email: user.email ?? null, emailVerified: emailVerified(user), hasPassword: !!user.passwordHash, google: !!user.googleId },
-    features: { google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE, requireApproval: requireApproval(), legal: LEGAL_VERSIONS },
+    features: siteFeatures(),
     creator: {
       admin: isAdmin(session), creator: isCreator(user), canPublish: !publishBlocker(user, session), blocker: publishBlocker(user, session),
       devOpen: ADMIN_OPEN, passwordLogin: !!ADMIN_PASSWORD, agreementVersion: user.creator?.agreementVersion ?? null,
@@ -234,15 +232,17 @@ function userState(user, session) {
 
 // ---------------- handlers ----------------
 const routes = [];
-const route = (method, pattern, handler) => routes.push({ method, re: new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`), handler });
+const route = (method, pattern, handler, opts = {}) => routes.push({ method, re: new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`), handler, public: !!opts.public });
+// Routes a signed-out visitor may call (user is null inside them). Everything else answers 401.
+const PUBLIC = { public: true };
 
-route('GET', '/api/state', ({ user, session }) => userState(user, session));
+route('GET', '/api/state', ({ user, session }) => userState(user, session), PUBLIC);
 
 route('GET', '/api/catalog', ({ user }) => {
   const games = db.all('games').filter(storeListed).map(publicGame);
   // Games this player can open but that aren't in the store: bought before they were
   // taken down, or their own games awaiting review. Library-only, never on shelves.
-  const unlisted = db.all('games').filter((g) => !storeListed(g) && !hiddenGame(g) && g.currentVersionId && (owns(user.id, g.id) || g.publishedBy === user.id))
+  const unlisted = db.all('games').filter((g) => !storeListed(g) && !hiddenGame(g) && g.currentVersionId && user && (owns(user.id, g.id) || g.publishedBy === user.id))
     .map((g) => ({ ...publicGame(g), unlisted: true }));
   const { shelves, thresholds } = visibleRankings();
   const counts = {};
@@ -256,20 +256,20 @@ route('GET', '/api/catalog', ({ user }) => {
     tags: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
     tools: Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([id, count]) => ({ id, count })),
   };
-});
+}, PUBLIC);
 
 route('GET', '/api/games/:id', ({ user, session, params }) => {
   const g = requireGame(params.id);
-  const unlocked = new Map(db.filter('userAchievements', (u) => u.userId === user.id && u.gameId === g.id).map((u) => [u.achievementId, u.unlockedAt]));
+  const unlocked = new Map(db.filter('userAchievements', (u) => u.userId === user?.id && u.gameId === g.id).map((u) => [u.achievementId, u.unlockedAt]));
   return {
     ...publicGame(g),
     achievements: db.filter('achievements', (a) => a.gameId === g.id).map((a) => ({ id: a.key, name: a.name, description: a.description, unlockedAt: unlocked.get(a.id) ?? null })),
     versions: db.filter('gameVersions', (v) => v.gameId === g.id).map((v) => ({ version: v.version, releasedAt: v.releasedAt, sizeBytes: v.sizeBytes, notes: v.notes, buildHash: v.buildHash, fileCount: v.files.length })),
-    canUpdate: canUpdateGame(user, session, g),
-    owned: owns(user.id, g.id),
-    play: playStats(user.id, g.id),
+    canUpdate: !!user && canUpdateGame(user, session, g),
+    owned: !!user && owns(user.id, g.id),
+    play: user ? playStats(user.id, g.id) : null,
   };
-});
+}, PUBLIC);
 
 // ----- commerce (mocked payment) -----
 route('POST', '/api/games/:id/purchase', ({ user, session, params, body }) => {
@@ -577,7 +577,7 @@ function signedBuild(ver) {
   const { manifest } = signBuild({ gameId: ver.gameId, version: ver.version, entry: ver.entry, buildHash: ver.buildHash, files: ver.files });
   return { manifest, signature: ver.signature };
 }
-route('GET', '/api/keys/packages', () => publicKey());
+route('GET', '/api/keys/packages', () => publicKey(), PUBLIC);
 route('GET', '/api/games/:id/build', ({ user, params }) => {
   const g = requireGame(params.id);
   if (!g.currentVersionId) fail(409, 'No build available');
@@ -603,9 +603,10 @@ route('POST', '/api/sessions/offline', ({ user, body, ctx }) => {
 // Accounts
 // ======================================================================
 async function signIn(res, ctx, session, account) {
-  const current = db.get('users', session.userId);
+  // A leftover guest session from an older build: bring its library along.
+  const current = session ? db.get('users', session.userId) : null;
   if (current?.guest) mergeUsers(current.id, account.id);
-  db.remove('authSessions', (s) => s.id === session.id);
+  if (session) db.remove('authSessions', (s) => s.id === session.id);
   const s = startSession(res, account.id, ctx);
   return userState(account, s);
 }
@@ -620,16 +621,10 @@ route('POST', '/api/auth/signup', async ({ user, session, body, ctx, res }) => {
   const displayName = String(body?.displayName ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 24);
   const passwordHash = await hashPassword(password);
   const terms = { termsVersion: LEGAL_VERSIONS.terms, termsAcceptedAt: db.now() }; // accepted on the sign-up form
-  if (user.guest) {
-    // Upgrade the guest in place: everything they own stays.
-    db.update(user, { guest: false, email, passwordHash, emailVerified: false, ...terms, username: uniqueUsername(email.split('@')[0]), displayName: displayName.length >= 2 ? displayName : user.displayName, upgradedAt: db.now() });
-    sendVerification(user, ctx);
-    return userState(user, session);
-  }
   const account = db.insert('users', { id: db.id('usr'), username: uniqueUsername(email.split('@')[0]), displayName: displayName.length >= 2 ? displayName : email.split('@')[0].slice(0, 24), email, passwordHash, emailVerified: false, ...terms, avatarHue: crypto.randomInt(360), memberSince: db.now(), guest: false });
   sendVerification(account, ctx);
   return signIn(res, ctx, session, account);
-});
+}, PUBLIC);
 route('POST', '/api/auth/login', async ({ session, body, ctx, res }) => {
   limit(`login-user:${ctx.ip}`, 20, 15 * 60e3);
   const email = String(body?.email ?? '').trim().toLowerCase();
@@ -637,14 +632,13 @@ route('POST', '/api/auth/login', async ({ session, body, ctx, res }) => {
   const ok = account?.passwordHash ? await verifyPassword(String(body?.password ?? ''), account.passwordHash) : (await hashPassword('timing-equaliser'), false);
   if (!ok) fail(401, account && !account.passwordHash ? 'This account uses Google sign-in' : 'Wrong email or password');
   return signIn(res, ctx, session, account);
-});
+}, PUBLIC);
 route('POST', '/api/auth/logout', ({ session, ctx, res }) => {
-  db.remove('authSessions', (s) => s.id === session.id);
+  if (session) db.remove('authSessions', (s) => s.id === session.id);
   clearSessionCookie(res, ctx);
   return { ok: true };
-});
+}, PUBLIC);
 route('POST', '/api/auth/password', async ({ user, session, body }) => {
-  if (user.guest) fail(400, 'Create an account first');
   if (user.passwordHash && !(await verifyPassword(String(body?.current ?? ''), user.passwordHash))) fail(401, 'Current password is wrong');
   const next = String(body?.password ?? '');
   if (next.length < 8) fail(400, 'Password must be at least 8 characters');
@@ -657,7 +651,7 @@ route('POST', '/api/auth/password', async ({ user, session, body }) => {
 export function googleStart(req, res, ctx) {
   if (!googleEnabled()) fail(404, 'Google sign-in is not configured');
   const { session } = authenticate(req, res, ctx);
-  const url = googleStartUrl(`${baseUrl(ctx)}/api/auth/google/callback`, session.userId);
+  const url = googleStartUrl(`${baseUrl(ctx)}/api/auth/google/callback`, session?.userId ?? null);
   res.writeHead(302, { Location: url, 'Cache-Control': 'no-store' });
   res.end();
 }
@@ -668,7 +662,7 @@ export async function googleCallback(req, res, ctx, url) {
     const { profile, guestUserId } = await googleFinish(url.searchParams.get('code'), url.searchParams.get('state'), `${baseUrl(ctx)}/api/auth/google/callback`);
     const email = profile.email_verified ? String(profile.email).toLowerCase() : null;
     let account = db.find('users', (u) => u.googleId === profile.sub) ?? (email ? db.find('users', (u) => u.email === email && !u.guest) : null);
-    const guest = db.get('users', guestUserId);
+    const guest = guestUserId ? db.get('users', guestUserId) : null;
     if (account) {
       if (!account.googleId) db.update(account, { googleId: profile.sub });
       if (guest?.guest) mergeUsers(guest.id, account.id);
@@ -677,7 +671,7 @@ export async function googleCallback(req, res, ctx, url) {
     } else {
       account = db.insert('users', { id: db.id('usr'), googleId: profile.sub, email, emailVerified: !!email, termsVersion: LEGAL_VERSIONS.terms, termsAcceptedAt: db.now(), username: uniqueUsername((email ?? 'player').split('@')[0]), displayName: String(profile.name ?? 'Player').slice(0, 24), avatarHue: crypto.randomInt(360), memberSince: db.now(), guest: false });
     }
-    db.remove('authSessions', (s) => s.userId === guestUserId && guestUserId !== account.id);
+    if (guest?.guest && guest.id !== account.id) db.remove('authSessions', (s) => s.userId === guest.id);
     startSession(res, account.id, ctx);
   } catch (err) {
     to = `/profile?authError=${encodeURIComponent(err.message)}`;
@@ -716,7 +710,6 @@ route('POST', '/api/games/:id/checkout', async ({ user, session, params, ctx }) 
     return { status: 'paid', order: publicOrder(order), state: userState(user, session) };
   }
   if (!stripeEnabled()) return { status: 'mock' }; // client shows the Vibe Wallet (fake) checkout
-  if (user.guest) fail(401, 'Create an account or sign in to buy — purchases are tied to your account');
   limit(`checkout:${user.id}`, 20, 10 * 60e3);
   const order = db.insert('orders', { id: db.id('ord'), userId: user.id, gameId: g.id, amountCents: g.priceCents, currency: CURRENCY, provider: 'stripe', status: 'pending', providerRef: null, createdAt: db.now(), paidAt: null });
   const base = baseUrl(ctx);
@@ -896,14 +889,14 @@ route('POST', '/api/games/:id/versions', async ({ user, session, params, body, c
 });
 
 // ----- reviews -----
-// Any signed-in (non-guest) player who owns a game can review it, except its developer.
+// Any signed-in player who owns a game can review it, except its developer.
 // One review per player per game (editing replaces it). Sample games also carry
 // fictional written reviews (demo: true), shown only while sample content is visible.
 const REVIEW_MAX = 4000;
 function reviewEligibility(user, g) {
+  if (!user) return { ok: false, reason: 'account' };
   const own = db.find('ownerships', (o) => o.userId === user.id && o.gameId === g.id);
   if (own?.source === 'developer' || g.publishedBy === user.id) return { ok: false, reason: 'developer' };
-  if (user.guest) return { ok: false, reason: 'guest' };
   if (!own) return { ok: false, reason: 'not_owned' };
   return { ok: true, reason: null };
 }
@@ -921,18 +914,18 @@ route('GET', '/api/games/:id/reviews', ({ user, params, url }) => {
   const filter = url.searchParams.get('filter'); // 'up' | 'down' | null
   const rows = db.filter('reviews', (r) => r.gameId === g.id && (!r.demo || demoVisible()) && (filter === 'up' ? r.up : filter === 'down' ? !r.up : true))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const mine = db.find('reviews', (r) => r.gameId === g.id && r.userId === user.id);
+  const mine = user ? db.find('reviews', (r) => r.gameId === g.id && r.userId === user.id) : null;
   return {
     rating: ratingFor(g), total: rows.length,
     reviews: rows.slice(0, 50).map((r) => publicReview(r, user)),
     mine: mine ? publicReview(mine, user) : null,
     eligibility: reviewEligibility(user, g),
   };
-});
+}, PUBLIC);
 route('PUT', '/api/games/:id/review', ({ user, params, body }) => {
   const g = requireGame(params.id);
   const el = reviewEligibility(user, g);
-  if (!el.ok) fail(403, { guest: 'Create an account to write reviews', not_owned: 'Only players who own this game can review it', developer: 'You can’t review your own game' }[el.reason]);
+  if (!el.ok) fail(403, { account: 'Create an account to write reviews', not_owned: 'Only players who own this game can review it', developer: 'You can’t review your own game' }[el.reason]);
   if (typeof body?.up !== 'boolean') fail(400, 'Pick thumbs up or thumbs down');
   const text = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
   if (text.length > REVIEW_MAX) fail(400, `Reviews can be up to ${REVIEW_MAX} characters`);
@@ -995,7 +988,6 @@ function sendVerification(user, ctx) {
   emails.verify(user.email, user.displayName, `${baseUrl(ctx)}/verify-email?token=${raw}`);
 }
 route('POST', '/api/auth/verify/resend', ({ user, ctx }) => {
-  if (user.guest) fail(400, 'Create an account first');
   if (emailVerified(user)) return { ok: true, alreadyVerified: true };
   limit(`verify-send:${user.id}`, 5, 60 * 60e3);
   sendVerification(user, ctx);
@@ -1004,8 +996,8 @@ route('POST', '/api/auth/verify/resend', ({ user, ctx }) => {
 route('POST', '/api/auth/verify', ({ user, session, body }) => {
   const account = useToken('verify', body?.token);
   db.update(account, { emailVerified: true, emailVerifiedAt: db.now() });
-  return { ok: true, email: account.email, state: account.id === user.id ? userState(user, session) : null };
-});
+  return { ok: true, email: account.email, state: account.id === user?.id ? userState(user, session) : null };
+}, PUBLIC);
 route('POST', '/api/auth/forgot', ({ body, ctx }) => {
   limit(`forgot:${ctx.ip}`, 10, 60 * 60e3);
   const email = String(body?.email ?? '').trim().toLowerCase();
@@ -1016,7 +1008,7 @@ route('POST', '/api/auth/forgot', ({ body, ctx }) => {
     emails.reset(account.email, account.displayName, `${baseUrl(ctx)}/reset-password?token=${raw}`);
   }
   return { ok: true }; // same answer either way, so emails can't be enumerated
-});
+}, PUBLIC);
 route('POST', '/api/auth/reset', async ({ body, ctx }) => {
   limit(`reset:${ctx.ip}`, 20, 60 * 60e3);
   const next = String(body?.password ?? '');
@@ -1026,13 +1018,12 @@ route('POST', '/api/auth/reset', async ({ body, ctx }) => {
   db.update(account, { passwordHash: await hashPassword(next), emailVerified: true });
   db.remove('authSessions', (s) => s.userId === account.id); // sign out everywhere
   return { ok: true, email: account.email };
-});
+}, PUBLIC);
 
 // ======================================================================
 // Creators: joining + payouts (Stripe Connect Express)
 // ======================================================================
 route('POST', '/api/creator/join', ({ user, session, body }) => {
-  if (user.guest) fail(401, 'Create an account first');
   if (!emailVerified(user)) fail(403, 'Confirm your email address first');
   if (user.creator?.status === 'suspended') fail(403, 'Your creator account is suspended. Contact support.');
   if (body?.agree !== true) fail(400, 'Please accept the Creator Agreement');
@@ -1362,7 +1353,7 @@ route('POST', '/api/client-errors', ({ body, ctx }) => {
   e.stack = `ClientError: ${e.message}\n${String(body?.stack ?? '').slice(0, 4000)}`;
   reportError(e, { url: String(body?.url ?? '').slice(0, 300), silent: true }, { platform: 'javascript', tags: { side: 'browser' } });
   return { ok: true };
-});
+}, PUBLIC);
 
 
 export async function handleApi(req, res, url, body, ctx) {
@@ -1371,6 +1362,7 @@ export async function handleApi(req, res, url, body, ctx) {
     const m = r.re.exec(url.pathname);
     if (!m) continue;
     const { user, session } = authenticate(req, res, ctx);
+    if (!user && !r.public) fail(401, 'Sign up or sign in to continue');
     const params = Object.fromEntries(Object.entries(m.groups ?? {}).map(([k, v]) => [k, decodeURIComponent(v)]));
     return reqCtx.run({ session, user }, () => r.handler({ user, session, params, body, url, ctx, res }));
   }

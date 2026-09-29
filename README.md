@@ -13,7 +13,7 @@ npm run reset                 # wipe data/ (re-seeded on next start)
 
 Everything runs from one process. `data/db.json` is created on first start.
 
-Locally, publishing and site reset are open to you. Every browser gets its own guest account; set `ACCOUNT_MODE=single` for the old shared "Jason" demo account.
+Locally, publishing and site reset are open to you. Browsing is open; playing, buying and publishing need a (free) account. Set `ACCOUNT_MODE=single` for the old shared "Jason" demo account.
 
 **Launch features:** creator accounts (sign up → confirm email → accept the Creator Agreement), a human review queue for new games and updates, player reports and takedowns, an admin console at `/admin` (queue, reports, games, orders & refunds, creators, settings, email outbox), creator payouts with Stripe Connect Express (90% of net, held until the creator's account is verified, reversed on refund), player self-serve refunds (14 days, under 2 hours played), Stripe Tax, email via Resend (verification, password reset, receipts, refunds, review results), draft legal pages at `/legal/*`, PostgreSQL storage (`DATABASE_URL`), S3/R2 object storage for uploads and backups (`npm run backup`), and Sentry error reporting. Setup and a launch checklist are in [DEPLOY.md](DEPLOY.md). Tests: `npm run test:launch` (set `TEST_DATABASE_URL` to include Postgres).
 
@@ -116,7 +116,7 @@ Everything must ship inside the zip (no CDN scripts or web fonts). Use `Platform
 
 ## Compromises made for the MVP
 
-- **Guest accounts**: every browser gets an automatic guest account (cookie-based). There's no real sign-in, and creator/admin access is a single shared password (`ADMIN_PASSWORD`).
+- **Accounts required to play**: visitors browse signed out; playing, buying, wishlisting, reviewing and publishing need an email/password (or Google) account.
 - **Mock payments**: a "Vibe Wallet" confirms instantly. Seeded reviews and ratings are placeholder data.
 - **Same host for games and platform.** Isolation relies on sandbox plus CSP. Production should serve packages from a separate registrable domain (e.g. `play.vibe-games.net`) as defence in depth.
 - A sandboxed iframe may share a process with the platform, so a runaway game loop can make the store UI janky. On desktop each game gets its own webview process.

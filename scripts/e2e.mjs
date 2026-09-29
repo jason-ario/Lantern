@@ -18,7 +18,7 @@ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
 const page = await ctx.newPage();
 const ignorable = (t) => /fonts\.(googleapis|gstatic)\.com|ERR_TUNNEL|ERR_CONNECTION|ERR_NAME_NOT_RESOLVED|Failed to load resource: net::ERR_(FAILED|TUNNEL)/.test(t);
 page.on('console', (m) => { if (m.type() === 'error' && !ignorable(m.text()) && !(probing && /Content Security Policy|Failed to load resource/.test(m.text()))) errors.push(`[console] ${m.text()}`); });
-page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
+page.on("pageerror", (e) => errors.push(`[pageerror] ${e.message} @ ${e.stack?.split("\n").slice(1,3).join(" ")} (${page.url()})`));
 page.on('response', (r) => { if (r.status() >= 400 && !probing) errors.push(`[http ${r.status()}] ${r.url()}`); });
 const api = (method, path, data) => page.request.fetch(`${BASE}${path}`, { method, headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data }).then((r) => r.json());
 const shot = (name) => page.screenshot({ path: `${OUT}/${name}.png` });
@@ -36,8 +36,19 @@ const quitGame = async () => {
   await page.waitForFunction(() => !document.body.classList.contains('in-game'), null, { timeout: 10000 });
 };
 
-// ---- reset & store ----
-await api('POST', '/api/dev/reset');
+// ---- sign up, reset, and the sign-up gate ----
+const su = await page.request.fetch(`${BASE}/api/auth/signup`, { method: 'POST', headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data: { email: `e2e-${Date.now()}@example.com`, password: 'hunter2hunter2', displayName: 'Jason' } });
+check('Sign up works', su.ok());
+await api('POST', '/api/dev/reset'); // keeps the signed-in account
+{ // signed-out visitors can browse, but playing needs an account
+  const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const ap = await anon.newPage();
+  ap.on('pageerror', (e) => errors.push(`[pageerror anon] ${e.message}`));
+  await ap.goto(`${BASE}/play/voidrunner?demo=1`);
+  await ap.waitForSelector('.auth-form');
+  check('Signed-out visitors are asked to sign up before playing', (await ap.textContent('.auth-reason')).includes('to play'));
+  await anon.close();
+}
 await page.goto(`${BASE}/store`);
 await page.waitForSelector('#featMain .logo');
 check('Store renders featured carousel', await page.locator('#featMain .logo').count() === 1);
@@ -215,7 +226,7 @@ check('Direct /play URL launches game', true);
 await p2.close();
 
 // ---- mobile ----
-const m = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: await ctx.storageState() }); // same guest account
+const m = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: await ctx.storageState() }); // same account
 const mp = await m.newPage();
 mp.on('pageerror', (e) => errors.push(`[pageerror mobile] ${e.message}`));
 for (const [name, path, sel] of [['m-store', '/store', '#featMain .logo'], ['m-game', '/app/tidewater', '.buy-box'], ['m-library', '/library', '.lib-card'], ['m-library-detail', '/library/voidrunner', '.ld-bar'], ['m-wishlist', '/wishlist', '.wish-row'], ['m-profile', '/profile', '.pf-stats'], ['m-publish', '/publish', '.drop']]) {

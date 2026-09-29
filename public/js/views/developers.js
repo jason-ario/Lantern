@@ -312,7 +312,7 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
       <tr><td>Reach</td><td>10%</td><td>Players in the last 28 days</td></tr>
     </tbody></table>
     <p><b>Free and paid compete equally.</b> The score uses per-player rates, not revenue, so a free game can top the front page. Revenue only decides the <b>Top Sellers</b> shelf.</p>
-    <p><b>Fair counting.</b> Guest players count half, at most 3 players from one network count, and your own plays and purchases are ignored. You can see your game's score, every signal compared with the average promoted game, and your biggest opportunity under <b>Publish → Your games</b>.</p>
+    <p><b>Fair counting.</b> At most 3 players from one network count, and your own plays and purchases are ignored. You can see your game's score, every signal compared with the average promoted game, and your biggest opportunity under <b>Publish → Your games</b>.</p>
   </section>
 
   <section id="sell" class="dv-sec">

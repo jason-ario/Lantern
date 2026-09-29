@@ -134,7 +134,7 @@ export async function render(root) {
     </section>
 
     <section class="block">
-      <div class="sec-h"><h2>Featured vibes</h2><span class="sec-note">Picked by how players actually play, not by us</span></div>
+      <div class="sec-h"><h2>Featured vibes</h2><span class="sec-note">The newest arrivals, then the games players love most</span></div>
       <div class="feat" id="feat">
         <a class="feat-main" id="featMain" href="#" data-link></a>
         <div class="feat-side" id="featSide"></div>

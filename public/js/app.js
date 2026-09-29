@@ -1,6 +1,6 @@
 // Platform shell: boot, navigation, routing.
 import { boot, state, onChange } from './state.js';
-import { avatar, esc, $$ } from './ui.js';
+import { avatar, esc, toast, $$ } from './ui.js';
 import * as store from './views/store.js';
 import * as gamePage from './views/game.js';
 import * as search from './views/search.js';
@@ -38,6 +38,31 @@ const routes = [
   [/^\/reset-password\/?$/, { render: renderReset }, null],
 ];
 
+// Pages that need an account. Signed-out visitors see a sign-up prompt instead
+// (the store, game pages, the creator guide and legal pages stay public).
+const NEEDS_ACCOUNT = new Set([library, wishlist, profile, play, checkoutComplete]);
+function gateReason(mod, m) {
+  if (mod === play) { const g = state.byId.get(decodeURIComponent(m[1])); return `Create a free account to play${g ? ` ${g.title.replace(/[.!?]+$/, '')}` : ''}. Your saves, achievements and library follow you everywhere.`; }
+  if (mod === wishlist) return 'Create a free account to keep a wishlist.';
+  if (mod === library) return 'Create a free account to start your library.';
+  return 'Sign up or sign in to see your profile.';
+}
+function renderGate(mod, m, query) {
+  const g = mod === play ? state.byId.get(decodeURIComponent(m[1])) : null;
+  if (query.get('authError')) toast(esc(query.get('authError')), { kind: 'error' });
+  view.innerHTML = `<div class="page empty-state acct-gate">
+    ${g ? `<img class="gate-cover" src="${esc(g.media.header ?? g.media.hero ?? '')}" alt="">` : ''}
+    <h2>${g ? `Ready to play ${esc(g.title)}?` : 'Sign up to continue'}</h2>
+    <p>${esc(gateReason(mod, m))}</p>
+    <div class="co-actions center"><button class="btn btn-buy btn-lg" id="gateSignup">Create free account</button><button class="btn btn-ghost" id="gateLogin">Sign in</button></div>
+    ${g ? `<p class="gate-back"><a href="/app/${esc(g.id)}" data-link>Back to ${esc(g.title)}</a></p>` : '<p class="gate-back"><a href="/store" data-link>Back to the store</a></p>'}
+  </div>`;
+  const reason = gateReason(mod, m);
+  view.querySelector('#gateSignup').onclick = () => openAuth({ mode: 'signup', reason, onDone: () => render() });
+  view.querySelector('#gateLogin').onclick = () => openAuth({ mode: 'login', reason, onDone: () => render() });
+  openAuth({ mode: 'signup', reason, onDone: () => render() });
+}
+
 const view = document.getElementById('view');
 let cleanup = null;
 let renderSeq = 0;
@@ -61,7 +86,8 @@ async function render() {
     const m = re.exec(path);
     if (!m) continue;
     if (typeof mod === 'function') return mod();
-    const isPlay = mod === play;
+    const gated = !state.user && NEEDS_ACCOUNT.has(mod);
+    const isPlay = mod === play && !gated;
     document.body.classList.toggle('in-game', isPlay);
     if (!isPlay) {
       lastNonPlay = path + location.search;
@@ -71,6 +97,7 @@ async function render() {
       view.onclick = null;
       window.scrollTo(0, 0);
     }
+    if (gated) { renderGate(mod, m, query); return; }
     try {
       cleanup = (await mod.render(isPlay ? document.getElementById('runtime-root') : view, m.slice(1).map(decodeURIComponent), query)) ?? null;
     } catch (err) {
@@ -92,14 +119,16 @@ document.addEventListener('click', (e) => {
 
 function renderChrome() {
   const me = document.getElementById('meChip');
-  if (state.user) me.innerHTML = `${avatar(state.user, 26)}<span>${esc(state.user.displayName)}</span>`;
+  me.innerHTML = state.user ? `${avatar(state.user, 26)}<span>${esc(state.user.displayName)}</span>` : '';
+  me.classList.toggle('hidden', !state.user);
   let signIn = document.getElementById('signInBtn');
-  if (state.user?.guest && !signIn) {
-    signIn = document.createElement('button');
-    signIn.id = 'signInBtn'; signIn.className = 'btn btn-ghost btn-sm nav-signin'; signIn.textContent = 'Sign in';
-    signIn.onclick = () => openAuth({ mode: 'login' });
+  if (!state.user && !signIn) {
+    signIn = document.createElement('span');
+    signIn.id = 'signInBtn'; signIn.className = 'nav-auth';
+    signIn.innerHTML = '<button class="btn btn-ghost btn-sm nav-signin" data-auth="login">Sign in</button><button class="btn btn-buy btn-sm nav-signup" data-auth="signup">Sign up</button>';
+    signIn.onclick = (e) => { const b = e.target.closest('[data-auth]'); if (b) openAuth({ mode: b.dataset.auth, onDone: () => render() }); };
     me.before(signIn);
-  } else if (!state.user?.guest && signIn) signIn.remove();
+  } else if (state.user && signIn) signIn.remove();
   let banner = document.getElementById('offlineBanner');
   if (state.offline && !banner) {
     banner = document.createElement('div');

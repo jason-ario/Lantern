@@ -26,12 +26,16 @@ async function startServer(port, env = {}) {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const b = await chromium.launch();
 
-async function newPlayer(base) {
+// A fresh browser. Playing and buying need an account, so by default the player
+// signs up first (signup: false = a signed-out visitor).
+let playerN = 0;
+async function newPlayer(base, { signup = true } = {}) {
   const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const api = (m, p, d) => page.request.fetch(base + p, { method: m, headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, data: d, failOnStatusCode: false }).then(async (r) => ({ status: r.status(), body: await r.json().catch(() => null) }));
+  if (signup) await api('POST', '/api/auth/signup', { email: `player${++playerN}-${Date.now()}@example.com`, password: 'hunter2hunter2', displayName: `Player ${playerN}` });
   return { ctx, page, api, errors };
 }
 const gameFrame = async (page) => { for (let i = 0; i < 60; i++) { const f = page.frames().find((x) => x !== page.mainFrame() && (x.url().includes('/games/') || x.url() === 'about:srcdoc')); if (f) return f; await wait(100); } throw new Error('no game frame'); };
@@ -44,29 +48,51 @@ try {
 
   // ---------------- accounts ----------------
   {
-    const { page, api, ctx } = await newPlayer(A);
-    await page.goto(`${A}/store`); await page.waitForSelector("#meChip"); // boot has created the guest session
-    await api('POST', '/api/games/voidrunner/purchase', { paymentMethod: 'demo-wallet' });
+    const { page, api, ctx } = await newPlayer(A, { signup: false });
+    await page.goto(`${A}/store`); await page.waitForSelector('#signInBtn');
+    const anon = await api('GET', '/api/state');
+    check('Signed-out visitors browse without an account being created', anon.status === 200 && anon.body.user === null && (await ctx.cookies()).length === 0);
+    check('Signed-out visitors can open game pages and reviews', (await api('GET', '/api/games/voidrunner')).status === 200 && (await api('GET', '/api/games/voidrunner/reviews')).status === 200);
+    check('Playing needs an account', (await api('POST', '/api/games/voidrunner/launch', { mode: 'demo' })).status === 401);
+    check('Buying and wishlisting need an account', (await api('POST', '/api/games/voidrunner/purchase', { paymentMethod: 'demo-wallet' })).status === 401 && (await api('PUT', '/api/wishlist/kepler')).status === 401);
+    check('Publishing needs an account', anon.body.creator.canPublish === false && anon.body.creator.blocker === 'account');
     const email = `jason+${Date.now()}@example.com`;
     const up = await api('POST', '/api/auth/signup', { email, password: 'correct horse', displayName: 'Jason' });
-    check('Guest upgrades to an account and keeps their library', up.status === 200 && !up.body.user.guest && up.body.owned.includes('voidrunner'), `owned=${up.body?.owned}`);
+    check('Sign up creates an account and signs in', up.status === 200 && up.body.user?.email === email);
+    await api('POST', '/api/games/voidrunner/purchase', { paymentMethod: 'demo-wallet' });
+    await api('PUT', '/api/wishlist/kepler');
     check('Duplicate email is refused', (await api('POST', '/api/auth/signup', { email, password: 'another pass' })).status === 409);
     await api('POST', '/api/auth/logout');
-    const guest = await api('GET', '/api/state');
-    check('Signing out starts a fresh guest', guest.body.user.guest && guest.body.owned.length === 0);
-    await api('PUT', '/api/wishlist/kepler');
-    await api('POST', '/api/games/tidewater/purchase', { paymentMethod: 'demo-wallet' });
+    const out = await api('GET', '/api/state');
+    check('Signing out leaves you signed out (no guest)', out.body.user === null && out.body.owned.length === 0);
     check('Wrong password is rejected', (await api('POST', '/api/auth/login', { email, password: 'nope nope' })).status === 401);
     const login = await api('POST', '/api/auth/login', { email, password: 'correct horse' });
-    check('Signing in merges the guest session into the account', login.status === 200 && login.body.owned.includes('voidrunner') && login.body.owned.includes('tidewater') && login.body.wishlist.includes('kepler'), `owned=${login.body?.owned} wish=${login.body?.wishlist}`);
-    // UI: sign-in modal exists for guests
+    check('Signing back in restores the library and wishlist', login.status === 200 && login.body.owned.includes('voidrunner') && login.body.wishlist.includes('kepler'), `owned=${login.body?.owned} wish=${login.body?.wishlist}`);
+    // UI: nav sign-in
     const ctx2 = await b.newContext(); const p2 = await ctx2.newPage();
     await p2.goto(`${A}/store`); await p2.waitForSelector('#signInBtn');
-    await p2.click('#signInBtn'); await p2.waitForSelector('.auth-form');
+    await p2.click('#signInBtn .nav-signin'); await p2.waitForSelector('.auth-form');
     await p2.fill('.auth-form input[name=email]', email); await p2.fill('.auth-form input[name=password]', 'correct horse');
     await p2.click('#authSubmit'); await p2.waitForFunction(() => !document.getElementById('signInBtn'));
     check('Sign-in modal signs in from the UI', (await p2.textContent('#meChip')).includes('Jason'));
     await ctx2.close();
+    // UI: "Try demo" while signed out → sign up → the demo starts
+    const ctx3 = await b.newContext({ viewport: { width: 1280, height: 800 } }); const p3 = await ctx3.newPage();
+    await p3.goto(`${A}/app/voidrunner`); await p3.waitForSelector('.demo-box a.btn-demo');
+    await p3.click('.demo-box a.btn-demo'); await p3.waitForSelector('.auth-form');
+    check('Try demo asks signed-out visitors to sign up', (await p3.textContent('.auth-reason')).includes('play Voidrunner'));
+    await p3.fill('.auth-form input[name=displayName]', 'Newbie');
+    await p3.fill('.auth-form input[name=email]', `newbie+${Date.now()}@example.com`);
+    await p3.fill('.auth-form input[name=password]', 'hunter2hunter2');
+    await p3.click('#authSubmit');
+    await p3.waitForSelector('#rtSplash.gone', { state: 'attached', timeout: 15000 });
+    check('After signing up the demo starts right away', (await p3.textContent('#rtDemo')).startsWith('DEMO'));
+    // UI: wishlist heart while signed out → sign up prompt
+    const ctx4 = await b.newContext(); const p4 = await ctx4.newPage();
+    await p4.goto(`${A}/app/kepler`); await p4.waitForSelector('[data-wish]');
+    await p4.click('[data-wish]'); await p4.waitForSelector('.auth-form');
+    check('Wishlisting while signed out asks to sign up', (await p4.textContent('.auth-reason')).includes('wishlist'));
+    await ctx4.close(); await ctx3.close();
     await ctx.close();
   }
 
@@ -136,7 +162,7 @@ try {
   // ---------------- publishing updates + delta downloads ----------------
   {
     const { page, api, ctx } = await newPlayer(A);
-    await page.goto(`${A}/store`); await page.waitForSelector("#meChip"); // boot has created the guest session
+    await page.goto(`${A}/store`); await page.waitForSelector("#meChip");
     const zip = (v) => ({ filename: `skylark-${v}.zip`, dataBase64: fs.readFileSync(`public/creator/skylark-${v}.zip`).toString('base64') });
     const pub = await api('POST', '/api/publish', { title: 'Skylark', developerName: 'Afternoon Games', version: '1.0.0', priceCents: 0, tags: ['Arcade'], package: zip('1.0.0') });
     check('Publish Skylark 1.0.0', pub.status === 200, pub.body?.error);
@@ -229,22 +255,22 @@ try {
     await new Promise((r) => fakeApi.listen(5391, r));
     const S = 'http://localhost:5302';
     await startServer(5302, { STRIPE_SECRET_KEY: 'sk_test_vibe', STRIPE_API_BASE: 'http://127.0.0.1:5391', STRIPE_WEBHOOK_SECRET: WHSEC });
-    const { page, api, ctx } = await newPlayer(S);
-    await page.goto(`${S}/app/hollow-lantern`); await page.waitForSelector('[data-buy]');
+    const { page, api, ctx } = await newPlayer(S, { signup: false });
+    await page.goto(`${S}/app/kepler`); await page.waitForSelector('[data-buy]');
     await page.click('[data-buy]');
     await page.waitForSelector('.auth-form');
-    check('Stripe mode: guests are asked to create an account before paying', (await page.textContent('.auth-reason')).includes('Create an account'));
+    check('Signed-out visitors are asked to create an account before paying', (await page.textContent('.auth-reason')).includes('Create a free account'));
     await page.fill('.auth-form input[name=displayName]', 'Buyer');
     await page.fill('.auth-form input[name=email]', 'buyer@example.com');
     await page.fill('.auth-form input[name=password]', 'hunter2hunter2');
     await page.click('#authSubmit');
     await page.waitForURL(/\/checkout\/complete/, { timeout: 15000 });
     await page.waitForSelector('.cd-panel .co-check', { timeout: 15000 });
-    check('Stripe Checkout round-trip grants the game', (await page.textContent('.cd-panel h2')).includes('The Hollow Lantern is yours'));
+    check('Stripe Checkout round-trip grants the game', (await page.textContent('.cd-panel h2')).includes('Last Light of Kepler is yours'));
     const st = await api('GET', '/api/state');
-    check('Ownership recorded after Stripe payment', st.body.owned.includes('hollow-lantern'));
+    check('Ownership recorded after Stripe payment', st.body.owned.includes('kepler'));
     const orders = await api('GET', '/api/orders');
-    check('Receipt in purchase history', orders.body[0]?.provider === 'stripe' && orders.body[0]?.amountCents === 1499);
+    check('Receipt in purchase history', orders.body[0]?.provider === 'stripe' && orders.body[0]?.amountCents === 999);
     check('Fake wallet is disabled when Stripe is on', (await api('POST', '/api/games/voidrunner/purchase', { paymentMethod: 'demo-wallet' })).status === 403);
     // webhook: pending order fulfilled by a signed event; unsigned rejected
     const co = await api('POST', '/api/games/tidewater/checkout', {});

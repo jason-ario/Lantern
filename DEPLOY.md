@@ -29,7 +29,7 @@ Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, 
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(none)* | Enable "Continue with Google". |
 | `GAMES_ORIGIN` | *(none)* | Serve untrusted game files from a separate domain, e.g. `https://play.vibe-games.net`. Requires `PUBLIC_URL`. |
 | `NODE_ENV` | — | Set `production` on a host. This also happens automatically on Render. |
-| `ACCOUNT_MODE` | `guest` | `guest`: every browser gets a guest account and can upgrade it to a real one. `single`: the old shared demo account. |
+| `ACCOUNT_MODE` | `accounts` | `accounts`: visitors browse signed out and must sign up to play, buy, wishlist, review or publish. `single`: the old shared demo account (local demos only). |
 | `TRUST_PROXY` | on in production | Reads `X-Forwarded-*` from the host's proxy, so HTTPS, secure cookies and rate limits work correctly. |
 
 `GET /healthz` returns `ok`, for health checks.
@@ -37,7 +37,8 @@ Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, 
 ## Accounts
 
 - Email and password sign-in works out of the box. Passwords are hashed with scrypt.
-- Guests keep everything when they create an account, because the guest is upgraded in place. When someone signs in to an existing account from a browser where they played as a guest, that guest progress is merged into the account.
+- There are no guest accounts. The store and game pages are public; playing (demos included), buying, wishlists, reviews, reports and publishing need an account. Browsers that still hold a guest session from an older build are treated as signed out, and that guest's library is merged into the account when they sign up or sign in.
+- `ADMIN_PASSWORD` unlocks admin for an account that is already signed in.
 - Email verification and password reset links are sent by email (see Email below). Creators and admins must confirm their email.
 
 **Google sign-in:**
@@ -62,7 +63,7 @@ Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, 
 
 **Refunds:** players refund themselves from **Profile → Purchase history** within 14 days and under 2 hours played; admins can refund any order in **Admin → Orders & refunds**.
 
-With Stripe on, buying a game requires an account, not a guest, because purchases must survive cleared cookies. Free games are claimed without checkout. Orders show up under **Profile → Purchase history**.
+Buying a game always requires an account. Free games are claimed without checkout. Orders show up under **Profile → Purchase history**.
 
 ## Separate games domain
 
@@ -143,7 +144,7 @@ Put it behind an HTTPS proxy such as Caddy or nginx, or use your host's built-in
 
 ## After deploying
 
-- Open the site. Each visitor automatically gets a guest account with a random name, which they can rename on **Profile**.
+- Open the site. Visitors can browse right away; the first time they press Play, Try demo, Buy or the wishlist heart they are asked to create a free account.
 - To publish a game, go to **Publish**: create an account, confirm your email, accept the Creator Agreement, then upload a `.zip` (make one with `node scripts/pack.mjs <folder>`). Admins' own uploads go live straight away; everyone else's wait in **Admin → Review queue**.
 - To wipe everything back to the seeded catalog, open **Profile → Reset entire site** as an admin.
 

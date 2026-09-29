@@ -22,9 +22,9 @@ export const BUILTIN_PACKAGES_DIR = path.resolve('packages'); // shipped with th
 export const ADMIN_PASSWORD = env.ADMIN_PASSWORD ?? '';
 export const ADMIN_OPEN = !ADMIN_PASSWORD && !IS_PROD;
 
-// 'guest' (default): every browser gets its own guest account.
+// 'accounts' (default): visitors browse signed out and sign up to play, buy or publish.
 // 'single': everyone shares the seeded demo account "Jason" (original local demo).
-export const ACCOUNT_MODE = env.ACCOUNT_MODE === 'single' ? 'single' : 'guest';
+export const ACCOUNT_MODE = env.ACCOUNT_MODE === 'single' ? 'single' : 'accounts';
 
 // Behind a hosting proxy (Render, Fly, nginx) trust X-Forwarded-Proto / -For.
 export const TRUST_PROXY = env.TRUST_PROXY ? env.TRUST_PROXY === '1' : IS_PROD;

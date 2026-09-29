@@ -86,7 +86,7 @@ check('Fast growth this week ranks higher on Trending', r('freebie').trend > r('
 check("A developer's own play and purchases are ignored", r('selfie').observed.players === 0 && r('selfie').revenue28 === 0 && r('selfie').status === 'listed');
 const promotedIds = [...R.byGame].filter(([, x]) => x.status === 'promoted').map(([id]) => id);
 check('Hidden gems are promoted games that few players have found', R.shelves.gems.length > 0 && R.shelves.gems.every((id) => promotedIds.includes(id)) && R.shelves.gems.some((id) => ['great', 'freebie'].includes(id)), R.shelves.gems.join(','));
-check('Featured carousel is only promoted games', R.shelves.featured.length > 0 && R.shelves.featured.every((id) => promotedIds.includes(id)));
+check('Featured carousel: newest arrivals first, then promoted games', R.shelves.featured.slice(0, RANK.featuredNewSlots).includes('fresh') && R.shelves.featured.filter((id) => !promotedIds.includes(id)).length <= RANK.featuredNewSlots && R.shelves.featured.some((id) => promotedIds.includes(id)), R.shelves.featured.join(','));
 check('Seeded demo-catalog games rank from their baseline', r('voidrunner').baseline && ['promoted', 'listed'].includes(r('voidrunner').status));
 const cr = creatorRank(r('shallow'), R.platform);
 check('Creators get a per-signal breakdown vs. promoted games', cr.factors.length === 5 && cr.factors.every((f) => typeof f.value === 'number' && typeof f.platform === 'number') && cr.factors.find((f) => f.key === 'hook').observed === 0);

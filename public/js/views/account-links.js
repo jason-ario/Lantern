@@ -15,7 +15,7 @@ export async function renderVerify(root, _, query) {
       <div class="co-actions"><a class="btn btn-ghost" href="/store" data-link>Back to the store</a><a class="btn btn-buy" href="/publish" data-link>Go to Publish</a></div>`;
   } catch (err) {
     card.innerHTML = `<h1>That link didn’t work</h1><p class="muted">${esc(err.message)}</p>
-      ${state.user && !state.user.guest && !state.user.emailVerified ? '<button class="btn btn-buy" id="resend">Send a new link</button>' : '<a class="btn btn-ghost" href="/profile" data-link>Go to your profile</a>'}`;
+      ${state.user && !state.user.emailVerified ? '<button class="btn btn-buy" id="resend">Send a new link</button>' : '<a class="btn btn-ghost" href="/profile" data-link>Go to your profile</a>'}`;
     root.querySelector('#resend')?.addEventListener('click', async (e) => {
       e.target.disabled = true;
       try { await api.auth.resendVerification(); toast(`New link sent to <b>${esc(state.user.email)}</b>`, { kind: 'ok' }); } catch (x) { e.target.disabled = false; toast(esc(x.message), { kind: 'error' }); }

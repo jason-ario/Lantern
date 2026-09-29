@@ -141,7 +141,9 @@ try {
   const player = await person();
 
   // ---------- accounts + verification ----------
-  check('Guests cannot publish', (await creator.api('POST', '/api/packages/inspect', pkg('1.0.0'))).status === 401);
+  check('Signed-out visitors cannot publish', (await creator.api('POST', '/api/packages/inspect', pkg('1.0.0'))).status === 401);
+  check('Signed-out visitors cannot play or buy', (await player.api('POST', '/api/games/voidrunner/launch', { mode: 'demo' })).status === 401 && (await player.api('POST', '/api/games/voidrunner/checkout', {})).status === 401);
+  await player.api('POST', '/api/auth/signup', { email: 'fan@example.com', password: 'password123', displayName: 'Fan' });
   await creator.api('POST', '/api/auth/signup', { email: 'maker@example.com', password: 'password123', displayName: 'Maker' });
   let st = (await creator.api('GET', '/api/state')).body;
   check('New accounts start unverified', st.user.emailVerified === false && st.creator.blocker === 'verify');
@@ -204,7 +206,6 @@ try {
   check('Creators outside the platform country are onboarded as recipients', acct.country === 'GE' && acct.tos === 'recipient');
 
   // ---------- a paid sale ----------
-  await player.api('POST', '/api/auth/signup', { email: 'fan@example.com', password: 'password123', displayName: 'Fan' });
   const co = await player.api('POST', `/api/games/${gid}/checkout`, {});
   check('Checkout creates a Stripe session with automatic tax', co.body.status === 'redirect' && [...stripe.sessions.values()].at(-1).automatic_tax === 'true');
   const sess = [...stripe.sessions.values()].at(-1);

@@ -38,7 +38,7 @@ function renderLocked(root) {
       ${step === 'join' ? `<p class="muted">The short version: you keep ownership and set the price, you get <b>${pct()} of net revenue</b> paid out through Stripe, every game is reviewed before it goes live, and you promise you have the rights to everything in your game, AI-generated parts included.</p>
         <label class="f check"><input type="checkbox" id="joinAgree"><span>I’ve read and agree to the <a href="/legal/creators" data-link>Creator Agreement</a></span></label>
         <button class="btn btn-buy" id="joinGo" disabled>Become a creator</button>` : ''}`}
-      ${c.passwordLogin && step !== 'suspended' ? `<details class="pub-admin-login"><summary class="muted small">Admin sign-in</summary><form id="loginForm" class="pub-lock-form"><input type="password" name="password" placeholder="Admin password" autocomplete="current-password" required><button class="btn btn-ghost">Unlock</button></form></details>` : ''}
+      ${c.passwordLogin && step !== 'suspended' && step !== 'account' ? `<details class="pub-admin-login"><summary class="muted small">Admin sign-in</summary><form id="loginForm" class="pub-lock-form"><input type="password" name="password" placeholder="Admin password" autocomplete="current-password" required><button class="btn btn-ghost">Unlock</button></form></details>` : ''}
     </div>
   </div>`;
   const on = (sel, fn) => root.querySelector(sel)?.addEventListener('click', fn);
@@ -332,7 +332,7 @@ function rankDetail(r) {
     </tbody></table>
     ${weakest && r.confidence >= 0.3 ? `<p class="rk-tip"><b>Biggest opportunity: ${esc(weakest.label)}.</b> ${esc(weakest.tip)}</p>`
       : r.confidence < 0.3 ? '<p class="rk-tip"><b>Not enough players yet to judge.</b> Share your store page link. The demo and the New shelf bring players in, and the score firms up after about 10 players.</p>' : ''}
-    <p class="muted small">Scores blend your real numbers with a neutral starting point until enough people have played, so a few players can't make or break a game. Guests count half, your own plays don't count, and at most 3 players per network count.${r.baseline ? ' This is a demo-catalog game: its numbers include a seeded baseline.' : ''} <a href="/developers#discovery" data-link>How discovery works</a></p>
+    <p class="muted small">Scores blend your real numbers with a neutral starting point until enough people have played, so a few players can't make or break a game. Your own plays don't count, and at most 3 players per network count.${r.baseline ? ' This is a demo-catalog game: its numbers include a seeded baseline.' : ''} <a href="/developers#discovery" data-link>How discovery works</a></p>
   </div>`;
 }
 

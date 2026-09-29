@@ -198,7 +198,7 @@ Nobody hand-picks the store. Every shelf is built from how players actually play
 | Reach | 10% | Players in the last 28 days |
 
 - **Free and paid compete equally.** The score uses per-player rates, not revenue, so a free game can top the front page. Revenue only decides **Top Sellers**.
-- **Fair counting.** Guest players count half, at most 3 players from one network count, and your own plays and purchases are ignored.
+- **Fair counting.** At most 3 players from one network count, and your own plays and purchases are ignored.
 - **See your numbers.** Under **Publish → Your games**, click a game's status to see its score, each signal compared with the average promoted game, and your biggest opportunity.
 
 The algorithm lives in [`server/ranking.js`](server/ranking.js), and its thresholds are in `RANK` at the top of that file.
