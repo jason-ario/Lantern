@@ -75,6 +75,8 @@ self.addEventListener('fetch', (e) => {
   }
 
   // Static shell, SDK, store media: stale-while-revalidate.
+  // Videos (trailers) stream with Range requests straight from the network; never cached here.
+  if (/\.(mp4|webm)$/i.test(url.pathname) || req.headers.has('range')) return;
   if (/^\/(js|css|sdk|media|user-media)\/|^\/favicon\.svg$/.test(url.pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') || url.pathname.startsWith('/sdk/') ? SHELL : API);

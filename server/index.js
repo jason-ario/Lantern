@@ -100,13 +100,31 @@ function gameCsp(origin, pkgPath, parent) {
   ].join('; ');
 }
 
-function sendFile(res, file, headers = {}) {
+// Supports single byte ranges (`Range: bytes=a-b`), which browsers need to stream and seek video.
+function sendFile(res, file, headers = {}, req = null) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found'); return; }
-    res.writeHead(200, {
+    // Validators let browsers stitch cached pieces of a video together safely.
+    const etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    const lastModified = st.mtime.toUTCString();
+    const base = {
       'Content-Type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
-      'Content-Length': st.size, 'X-Content-Type-Options': 'nosniff', ...headers,
-    });
+      'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes', ETag: etag, 'Last-Modified': lastModified, ...headers,
+    };
+    const ifRange = req?.headers['if-range'];
+    const rangeOk = !ifRange || ifRange === etag || ifRange === lastModified;
+    const m = rangeOk ? /^bytes=(\d*)-(\d*)$/.exec(String(req?.headers.range ?? '').trim()) : null;
+    if (m && (m[1] || m[2])) {
+      let start = m[1] ? Number(m[1]) : Math.max(0, st.size - Number(m[2]));
+      let end = m[1] && m[2] ? Math.min(Number(m[2]), st.size - 1) : st.size - 1;
+      if (start >= st.size || start > end) { res.writeHead(416, { ...base, 'Content-Range': `bytes */${st.size}` }); res.end(); return; }
+      res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+      if (req.method === 'HEAD') { res.end(); return; }
+      fs.createReadStream(file, { start, end }).pipe(res);
+      return;
+    }
+    res.writeHead(200, { ...base, 'Content-Length': st.size });
+    if (req?.method === 'HEAD') { res.end(); return; }
     fs.createReadStream(file).pipe(res);
   });
 }
@@ -178,7 +196,9 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-vibe-client'] !== 'platform' || (reqOrigin && reqOrigin !== origin)) {
         throw new HttpError(403, 'Forbidden');
       }
-      const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readBody(req, 80e6) : null;
+      // Trailer uploads stream the raw video to disk in the handler (see api.js).
+      const rawUpload = req.method === 'PUT' && /^\/api\/creator\/games\/[^/]+\/trailer$/.test(p);
+      const body = ['POST', 'PUT', 'PATCH'].includes(req.method) && !rawUpload ? await readBody(req, 80e6) : null;
       const result = await handleApi(req, res, url, body, ctx);
       const json = JSON.stringify(result ?? null);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -223,7 +243,7 @@ const server = http.createServer(async (req, res) => {
       const file = safeJoin(USER_MEDIA_DIR, p.slice('/user-media/'.length));
       if (!file) { res.writeHead(404); res.end(); return; }
       await ensureLocal(file, `media/${p.slice('/user-media/'.length)}`);
-      sendFile(res, file, { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox", 'Cache-Control': 'public, max-age=3600' });
+      sendFile(res, file, { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox", 'Cache-Control': 'public, max-age=3600' }, req);
       return;
     }
 

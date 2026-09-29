@@ -196,6 +196,11 @@ try {
   const edit = await creator.api('PATCH', `/api/creator/games/${gid}`, { shortDescription: 'Snake, but it glows.', priceCents: 499 });
   check('Creators can edit their store page', edit.status === 200 && edit.body.game.shortDescription === 'Snake, but it glows.');
   check('Other players can’t edit it', (await player.api('PATCH', `/api/creator/games/${gid}`, { shortDescription: 'hacked' })).status === 403);
+  const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(3000, 1)]);
+  const putTrailer = (who) => who.page.request.fetch(`${BASE}/api/creator/games/${gid}/trailer`, { method: 'PUT', headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'video/mp4' }, data: mp4, failOnStatusCode: false });
+  check('Other players can’t upload a trailer', (await putTrailer(player)).status() === 403);
+  const tr = await (await putTrailer(creator)).json();
+  check('Trailers go live straight away and are copied to object storage', /\.mp4$/.test(tr.trailer ?? '') && s3.has(`media/${gid}/${tr.trailer.split('/').pop()}`) && (await player.api('GET', `/api/games/${gid}`)).body.media.trailer === tr.trailer);
 
   // ---------- payouts: Connect onboarding ----------
   let po = (await creator.api('GET', '/api/creator/payouts')).body;

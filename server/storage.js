@@ -52,18 +52,25 @@ export async function getObject(key) {
 }
 
 // Upload every file under a local directory, keyed by `${prefix}/${relative path}`.
-export async function putDir(localDir, prefix) {
+export async function putDir(localDir, prefix, { skip } = {}) {
   if (!storageEnabled()) return 0;
   let n = 0;
   const walk = async (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) await walk(p);
+      else if (e.name.startsWith('.') || skip?.(p)) continue;
       else { await putObject(`${prefix}/${path.relative(localDir, p).split(path.sep).join('/')}`, fs.readFileSync(p)); n++; }
     }
   };
   await walk(localDir);
   return n;
+}
+
+// Upload one local file (e.g. a store-page trailer).
+export async function putFile(localFile, key, contentType) {
+  if (!storageEnabled()) return false;
+  return putObject(key, fs.readFileSync(localFile), contentType);
 }
 
 // Make sure `localFile` exists, fetching it from the bucket (`key`) if needed.

@@ -12,7 +12,12 @@ export async function render(root, [id], query) {
   root.innerHTML = `${storeBar()}<div class="page"><div class="skeleton-hero"></div></div>`;
   bindStoreBar(root);
   const g = await api.game(id);
-  const media = [g.media.hero, ...g.media.screenshots];
+  // Gallery: the trailer (when there is one) always comes first, then the banner, then screenshots.
+  const media = [
+    ...(g.media.trailer ? [{ video: g.media.trailer }] : []),
+    { img: g.media.hero, banner: true },
+    ...g.media.screenshots.map((img) => ({ img })),
+  ];
   const r = ratingLabel(g.rating);
   const unlocked = g.achievements.filter((a) => a.unlockedAt).length;
 
@@ -59,7 +64,9 @@ export async function render(root, [id], query) {
     <div class="gp-top">
       <div class="gp-media">
         <div class="gp-stage" id="stage"></div>
-        <div class="gp-thumbs" id="thumbs">${media.map((m, i) => `<button data-i="${i}" style="background-image:url('${esc(m)}')" aria-label="Screenshot ${i + 1}"></button>`).join('')}</div>
+        <div class="gp-thumbs" id="thumbs">${media.map((m, i) => m.video
+          ? `<button data-i="${i}" class="thumb-video" style="background-image:url('${esc(g.media.hero)}')" aria-label="Trailer">${icons.play}</button>`
+          : `<button data-i="${i}" style="background-image:url('${esc(m.img)}')" aria-label="${m.banner ? 'Banner' : `Screenshot ${i}`}"></button>`).join('')}</div>
       </div>
       <aside class="gp-side">
         <div class="gp-capsule" style="background-image:url('${esc(g.media.header)}')">${logo(g, 'md')}</div>
@@ -150,11 +157,24 @@ export async function render(root, [id], query) {
   // media viewer
   const stage = $('#stage', root);
   const show = (i) => {
-    stage.style.backgroundImage = `url('${media[i]}')`;
-    stage.innerHTML = i === 0 ? logo(g, 'lg') : '';
+    const m = media[i];
+    stage.classList.toggle('is-video', !!m.video);
+    if (m.video) {
+      // Autoplays muted (browsers only allow that); the controls unmute it.
+      stage.style.backgroundImage = '';
+      stage.innerHTML = '';
+      const v = document.createElement('video');
+      Object.assign(v, { src: m.video, poster: g.media.hero, controls: true, muted: true, autoplay: true, playsInline: true, preload: 'auto' });
+      v.setAttribute('aria-label', `${g.title} trailer`);
+      stage.append(v);
+      v.play().catch(() => {});
+    } else {
+      stage.style.backgroundImage = `url('${m.img}')`;
+      stage.innerHTML = m.banner ? logo(g, 'lg') : '';
+    }
     $$('#thumbs button', root).forEach((b, j) => b.classList.toggle('on', j === i));
   };
-  show(media.length > 1 ? 1 : 0);
+  show(g.media.trailer ? 0 : media.length > 1 ? 1 : 0);
   $('#thumbs', root).onclick = (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); };
 
   const wishHead = () => {
@@ -231,7 +251,8 @@ export async function render(root, [id], query) {
       } catch (err) { toast(esc(err.message), { kind: 'error' }); }
     }
   };
-  return off;
+  // A detached <video> keeps playing (and can be unmuted), so stop the trailer on leave.
+  return () => { off(); stage.querySelector('video')?.pause(); };
 }
 
 // Report a game or review to the moderators.

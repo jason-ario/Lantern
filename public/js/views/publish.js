@@ -20,6 +20,84 @@ const readAs = (file, how) => new Promise((resolve, reject) => {
 });
 const b64 = (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
 
+// ---------------- Store media helpers ----------------
+const maxTrailerMb = () => state.features.trailerMaxMb ?? 200;
+// Returns an error message, or null when the file is a usable trailer.
+function trailerProblem(file) {
+  if (!file) return null;
+  if (!['video/mp4', 'video/webm'].includes(file.type)) return 'Trailers must be MP4 (H.264) or WebM videos. Export or convert it and try again.';
+  if (file.size > maxTrailerMb() * 1024 * 1024) return `That trailer is ${bytes(file.size)}. The limit is ${maxTrailerMb()} MB.`;
+  return null;
+}
+const trailerHint = () => `MP4 (H.264) or WebM, up to ${maxTrailerMb()} MB. It plays first on your store page, and in the Featured slot on the store home (muted until the player turns sound on).`;
+
+// Screenshot list with drag-to-reorder, move buttons (keyboard / touch), remove and add.
+// Items are { url } for images already on the store page or { data } for new uploads.
+function shotManager(el, initial, { max = 6, min = 0, onChange } = {}) {
+  let items = initial.map((url) => ({ url }));
+  let dragFrom = null;
+  const src = (x) => x.url ?? x.data;
+  const paint = () => {
+    el.innerHTML = `${items.map((x, i) => `<div class="shot-tile" draggable="true" data-i="${i}" style="background-image:url('${esc(src(x))}')">
+        <span class="shot-n">${i + 1}</span>${x.data ? '<span class="shot-new">New</span>' : ''}
+        <div class="shot-tools">
+          <button type="button" data-move="-1" aria-label="Move screenshot ${i + 1} earlier" ${i === 0 ? 'disabled' : ''}>‹</button>
+          <button type="button" data-move="1" aria-label="Move screenshot ${i + 1} later" ${i === items.length - 1 ? 'disabled' : ''}>›</button>
+          <button type="button" data-remove aria-label="Remove screenshot ${i + 1}" ${items.length <= min ? 'disabled' : ''}>${icons.close}</button>
+        </div>
+      </div>`).join('')}
+      ${items.length < max ? `<label class="shot-add"><input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden><b>+</b><small>Add screenshot${max - items.length > 1 ? 's' : ''}</small></label>` : ''}`;
+    el.querySelector('.shot-add input')?.addEventListener('change', async (e) => {
+      const files = [...e.target.files].slice(0, max - items.length);
+      items = [...items, ...(await Promise.all(files.map(async (f) => ({ data: await readAs(f, 'dataurl') }))))];
+      changed();
+    });
+  };
+  const changed = () => { paint(); onChange?.(items); };
+  const move = (from, to) => {
+    if (to < 0 || to >= items.length || from === to) return;
+    const [x] = items.splice(from, 1);
+    items.splice(to, 0, x);
+    changed();
+  };
+  el.addEventListener('click', (e) => {
+    const tile = e.target.closest('.shot-tile'); if (!tile) return;
+    const i = +tile.dataset.i;
+    const mv = e.target.closest('[data-move]');
+    if (mv) { move(i, i + +mv.dataset.move); el.querySelector(`.shot-tile[data-i="${Math.max(0, Math.min(items.length - 1, i + +mv.dataset.move))}"] [data-move="${mv.dataset.move}"]:not(:disabled)`)?.focus(); }
+    if (e.target.closest('[data-remove]')) { items.splice(i, 1); changed(); }
+  });
+  el.addEventListener('dragstart', (e) => {
+    const tile = e.target.closest('.shot-tile'); if (!tile) return;
+    dragFrom = +tile.dataset.i; tile.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragFrom));
+  });
+  el.addEventListener('dragover', (e) => {
+    if (dragFrom == null) return;
+    const tile = e.target.closest('.shot-tile');
+    e.preventDefault();
+    el.querySelectorAll('.shot-tile').forEach((t) => t.classList.toggle('drop-target', t === tile && +t.dataset.i !== dragFrom));
+  });
+  el.addEventListener('drop', (e) => {
+    if (dragFrom == null) return;
+    e.preventDefault();
+    const tile = e.target.closest('.shot-tile');
+    const to = tile ? +tile.dataset.i : items.length - 1;
+    const from = dragFrom; dragFrom = null;
+    move(from, to);
+    paint();
+  });
+  el.addEventListener('dragend', () => { dragFrom = null; el.querySelectorAll('.shot-tile').forEach((t) => t.classList.remove('dragging', 'drop-target')); });
+  paint();
+  return {
+    items: () => items,
+    // What the API expects: current URLs are kept as-is, new images are sent as data URLs.
+    value: () => items.map(src),
+    changed: () => items.length !== initial.length || items.some((x, i) => x.url !== initial[i]),
+  };
+}
+
 // Not a creator yet: walk the player through account → verified email → creator agreement.
 function renderLocked(root) {
   const c = state.creator;
@@ -63,7 +141,7 @@ export async function render(root, _, query) {
   applyUserState(await api.state());
   if (!state.creator.canPublish) return renderLocked(root);
   if (query?.get('payouts') === 'done') toast('Payout details saved. Stripe may take a few minutes to verify them.', { kind: 'ok', timeout: 6000 });
-  const form = { pkg: null, report: null, cover: null, header: null, hero: null, shots: [] };
+  const form = { pkg: null, report: null, cover: null, header: null, hero: null, trailer: null, shots: null };
   root.innerHTML = `<div class="page publish">
     <div class="pub-head">
       <div><div class="eyebrow">vibe-games publish --prototype</div><h1>Ship your vibe-coded game</h1>
@@ -132,9 +210,10 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           <h3>Media</h3>
           <div class="fgrid">
             <label class="f"><span>Cover / key art <small>portrait, 600×900 · PNG, JPG or WebP</small></span><input type="file" name="cover" accept="image/png,image/jpeg,image/webp"></label>
-            <label class="f"><span>Screenshots <small>up to 6 · 16:9</small></span><input type="file" name="shots" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <label class="f"><span>Trailer <small>optional · MP4 or WebM · up to ${maxTrailerMb()} MB</small></span><input type="file" name="trailer" accept="video/mp4,video/webm"></label>
             <label class="f"><span>Header capsule <small>optional · 920×430</small></span><input type="file" name="header" accept="image/png,image/jpeg,image/webp"></label>
             <label class="f"><span>Store banner <small>optional · 1920×620</small></span><input type="file" name="hero" accept="image/png,image/jpeg,image/webp"></label>
+            <div class="f span2"><span>Screenshots <small>up to 6 · 16:9 · drag to reorder</small></span><div class="shot-mgr" id="pubShots"></div></div>
           </div>
           <p class="muted small">Leave media empty and Vibe-Games generates placeholder key art for you. Without the wide images the cover stands in for them. Real screenshots sell much better, though.</p>
         </section>
@@ -247,8 +326,12 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
     form.cover = file ? await readAs(file, 'dataurl') : null;
     $('#pvArt', root).style.backgroundImage = form.cover ? `url('${form.cover}')` : '';
   });
-  f.elements.shots.addEventListener('change', async (e) => {
-    form.shots = await Promise.all([...e.target.files].slice(0, 6).map((x) => readAs(x, 'dataurl')));
+  form.shots = shotManager($('#pubShots', root), []);
+  f.elements.trailer.addEventListener('change', (e) => {
+    const file = e.target.files[0] ?? null;
+    const problem = trailerProblem(file);
+    if (problem) { toast(esc(problem), { kind: 'error', timeout: 6000 }); e.target.value = ''; form.trailer = null; return; }
+    form.trailer = file;
   });
   for (const k of ['header', 'hero']) {
     f.elements[k].addEventListener('change', async (e) => { const file = e.target.files[0]; form[k] = file ? await readAs(file, 'dataurl') : null; });
@@ -275,17 +358,32 @@ Platform.game.onExit(() =&gt; Platform.storage.save('save', state));</code></pre
           shortDescription: val('shortDescription'), description: f.elements.description.value,
           tags: val('tags').split(',').map((x) => x.trim()).filter(Boolean),
           builtWith: pickedTools(), vibe: { prompt: val('vibePrompt'), hours: val('vibeHours') || null },
-          cover: form.cover, header: form.header, hero: form.hero, screenshots: form.shots, package: form.pkg,
+          cover: form.cover, header: form.header, hero: form.hero, screenshots: form.shots.value(), package: form.pkg,
         }),
         new Promise((res) => setTimeout(res, 1800)),
       ]);
       clearInterval(tick);
       lis.forEach((li) => { li.classList.remove('doing'); li.classList.add('done'); });
+      // The trailer goes up on its own (it can be big), once the game exists.
+      let trailerNote = '';
+      if (form.trailer) {
+        const li = document.createElement('li');
+        li.className = 'doing';
+        li.textContent = 'Uploading trailer';
+        $('ol', panel).append(li);
+        try {
+          await api.creator.uploadTrailer(r.gameId, form.trailer, (p) => { li.textContent = `Uploading trailer · ${Math.round(p * 100)}%`; });
+          li.textContent = 'Uploading trailer'; li.classList.replace('doing', 'done');
+        } catch (err) {
+          li.classList.remove('doing');
+          trailerNote = `<p class="warn-note">The game is published, but the trailer didn’t upload (${esc(err.message)}). Add it from <b>Edit store page</b>.</p>`;
+        }
+      }
       await loadCatalog();
       applyUserState(r.state);
       panel.insertAdjacentHTML('beforeend', `<div class="pub-live">
         <div class="co-check">✓</div>
-        <div><h3>${r.listing === 'pending' ? `${esc(val('title'))} is in the review queue` : `${esc(val('title'))} is live. Vibe check passed ✦`}</h3>${r.listing === 'pending' ? '<p>We review every new game before it goes live, usually within a couple of days. We’ll email you the moment it’s approved. Meanwhile you can play it and check the store page; only you can see them.</p>' : ''}<p class="muted">Version ${esc(r.version)} · build <span class="mono">${esc(r.buildHash.slice(0, 12))}</span> · immutable URL <span class="mono">/games/${esc(r.gameId)}/${esc(r.version)}/</span></p></div>
+        <div><h3>${r.listing === 'pending' ? `${esc(val('title'))} is in the review queue` : `${esc(val('title'))} is live. Vibe check passed ✦`}</h3>${r.listing === 'pending' ? '<p>We review every new game before it goes live, usually within a couple of days. We’ll email you the moment it’s approved. Meanwhile you can play it and check the store page; only you can see them.</p>' : ''}${trailerNote}<p class="muted">Version ${esc(r.version)} · build <span class="mono">${esc(r.buildHash.slice(0, 12))}</span> · immutable URL <span class="mono">/games/${esc(r.gameId)}/${esc(r.version)}/</span></p></div>
         <div class="co-actions"><a class="btn btn-ghost" href="/app/${esc(r.gameId)}" data-link>View store page</a><a class="btn btn-play btn-lg" href="/play/${esc(r.gameId)}" data-link>${icons.play} Play now</a></div>
       </div>`);
     } catch (err) {
@@ -425,27 +523,58 @@ function openEdit(g, onDone) {
       <div class="f span2"><span>Built with</span><div class="tool-pick">${TOOLS.map((t) => `<label><input type="checkbox" name="tool" value="${t.id}" ${st.builtWith.includes(t.id) ? 'checked' : ''}><span class="vibe-chip" style="--c:${t.color}">${esc(t.name)}</span></label>`).join('')}</div></div>
       <label class="f span2"><span>The prompt that started it</span><textarea name="prompt" rows="2" maxlength="${MAX_PROMPT}">${esc(st.vibe?.prompt ?? '')}</textarea></label>
       <label class="f"><span>Time to build (hours)</span><input name="hours" type="number" min="0.1" step="0.5" value="${esc(st.vibe?.hours ?? '')}"></label>
+      <div class="f span2"><span>Trailer</span><div class="trailer-edit" id="trailerEdit"></div></div>
+      <div class="f span2"><span>Screenshots <small>up to 6 · drag or use the arrows to reorder</small></span><div class="shot-mgr" id="editShots"></div></div>
       <div class="f span2"><span>Store art <small>leave empty to keep the current images</small></span></div>
       <label class="f"><span>Cover <small>600×900</small></span><input type="file" name="mCover" accept="image/png,image/jpeg,image/webp"></label>
-      <label class="f"><span>Screenshots <small>replaces all · up to 6</small></span><input type="file" name="mShots" accept="image/png,image/jpeg,image/webp" multiple></label>
       <label class="f"><span>Header capsule <small>920×430</small></span><input type="file" name="mHeader" accept="image/png,image/jpeg,image/webp"></label>
       <label class="f"><span>Store banner <small>1920×620</small></span><input type="file" name="mHero" accept="image/png,image/jpeg,image/webp"></label>
     </div>
-    <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy">Save changes</button></div>
+    <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy" id="editSave">Save changes</button></div>
   </form>`, {
     onMount(el, close) {
       el.querySelectorAll('[data-close]').forEach((b) => { b.onclick = close; });
       const f = el.querySelector('#editForm');
+      const shots = shotManager(el.querySelector('#editShots'), g.media.screenshots ?? [], { min: 1 });
+
+      // Trailer: keep / replace (uploaded on save) / remove.
+      let trailer = { action: 'keep', file: null };
+      const tEl = el.querySelector('#trailerEdit');
+      const paintTrailer = () => {
+        const cur = g.media.trailer && trailer.action === 'keep';
+        tEl.innerHTML = `${cur ? `<video src="${esc(g.media.trailer)}" poster="${esc(g.media.hero)}" muted controls playsinline preload="metadata"></video>` : ''}
+          <div class="trailer-edit-side">
+            ${trailer.action === 'replace' ? `<div class="trailer-file">${icons.play} <b>${esc(trailer.file.name)}</b> <span class="muted">${bytes(trailer.file.size)} · uploads when you save</span></div>`
+              : trailer.action === 'remove' ? '<div class="trailer-file muted">The trailer will be removed when you save.</div>'
+              : cur ? '' : '<div class="trailer-file muted">No trailer yet. Store pages with one get far more attention.</div>'}
+            <div class="trailer-btns">
+              <label class="btn btn-ghost btn-sm">${cur || trailer.action === 'replace' ? 'Choose a different video' : 'Upload a trailer'}<input type="file" accept="video/mp4,video/webm" hidden></label>
+              ${cur ? '<button type="button" class="btn btn-ghost btn-sm" data-trailer="remove">Remove</button>' : ''}
+              ${trailer.action !== 'keep' ? '<button type="button" class="btn btn-ghost btn-sm" data-trailer="undo">Undo</button>' : ''}
+            </div>
+            <p class="muted small">${esc(trailerHint())}</p>
+          </div>`;
+        tEl.querySelector('input[type=file]').onchange = (e) => {
+          const file = e.target.files[0]; if (!file) return;
+          const problem = trailerProblem(file);
+          if (problem) { toast(esc(problem), { kind: 'error', timeout: 6000 }); return; }
+          trailer = { action: 'replace', file }; paintTrailer();
+        };
+        tEl.querySelector('[data-trailer=remove]')?.addEventListener('click', () => { trailer = { action: 'remove', file: null }; paintTrailer(); });
+        tEl.querySelector('[data-trailer=undo]')?.addEventListener('click', () => { trailer = { action: 'keep', file: null }; paintTrailer(); });
+      };
+      paintTrailer();
+
       f.onsubmit = async (e) => {
         e.preventDefault();
         const tools = [...f.querySelectorAll('input[name=tool]:checked')].map((i) => i.value);
         if (!tools.length) { toast('Pick at least one tool you built it with', { kind: 'error' }); return; }
+        const save = el.querySelector('#editSave');
         const one = (input) => (input.files[0] ? readAs(input.files[0], 'dataurl') : null);
-        const media = {
-          cover: await one(f.mCover), header: await one(f.mHeader), hero: await one(f.mHero),
-          screenshots: await Promise.all([...f.mShots.files].slice(0, 6).map((x) => readAs(x, 'dataurl'))),
-        };
-        const hasMedia = media.cover || media.header || media.hero || media.screenshots.length;
+        const media = { cover: await one(f.mCover), header: await one(f.mHeader), hero: await one(f.mHero) };
+        if (shots.changed()) media.screenshots = shots.value();
+        const hasMedia = media.cover || media.header || media.hero || media.screenshots;
+        save.disabled = true; save.textContent = 'Saving…';
         try {
           await api.creator.edit(g.id, {
             ...(hasMedia ? { media } : {}),
@@ -453,8 +582,13 @@ function openEdit(g, onDone) {
             tags: f.tags.value.split(',').map((x) => x.trim()).filter(Boolean), builtWith: tools.slice(0, MAX_TOOLS),
             vibe: { prompt: f.prompt.value, hours: f.hours.value || null },
           });
+          if (trailer.action === 'replace') await api.creator.uploadTrailer(g.id, trailer.file, (p) => { save.textContent = `Uploading trailer · ${Math.round(p * 100)}%`; });
+          if (trailer.action === 'remove') await api.creator.removeTrailer(g.id);
           await loadCatalog(); close(); toast('Store page updated', { kind: 'ok' }); onDone?.();
-        } catch (err) { toast(esc(err.message), { kind: 'error' }); }
+        } catch (err) {
+          toast(esc(err.message), { kind: 'error', timeout: 6000 });
+          save.disabled = false; save.textContent = 'Save changes';
+        }
       };
     },
   });

@@ -39,6 +39,25 @@ async function request(method, path, body, { keepalive = false } = {}) {
   return data;
 }
 
+// Large binary uploads (trailers): the file is the request body, with upload progress.
+function uploadRaw(method, path, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, path);
+    xhr.setRequestHeader('X-Vibe-Client', 'platform');
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new ApiError(xhr.status, data?.error ?? `Upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => { setOffline(!navigator.onLine); reject(new TypeError('Upload failed: check your connection')); };
+    xhr.send(file);
+  });
+}
+
 const enc = encodeURIComponent;
 
 export const api = {
@@ -67,6 +86,8 @@ export const api = {
     games: () => request('GET', '/api/creator/games'),
     publishVersion: (id, payload) => request('POST', `/api/games/${enc(id)}/versions`, payload),
     edit: (id, patch) => request('PATCH', `/api/creator/games/${enc(id)}`, patch),
+    uploadTrailer: (id, file, onProgress) => uploadRaw('PUT', `/api/creator/games/${enc(id)}/trailer`, file, onProgress),
+    removeTrailer: (id) => request('DELETE', `/api/creator/games/${enc(id)}/trailer`),
     join: () => request('POST', '/api/creator/join', { agree: true }),
     payouts: () => request('GET', '/api/creator/payouts'),
     onboard: (country) => request('POST', '/api/creator/payouts/onboard', { country }),

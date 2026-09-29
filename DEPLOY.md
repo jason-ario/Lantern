@@ -17,6 +17,7 @@ Vibe-Games is one Node process with no dependencies. It needs **Node 22+** and, 
 | `REQUIRE_APPROVAL` | on (off in open local dev) | New games and updates wait in the admin review queue. Admins can also switch this in **Admin → Settings**. |
 | `STRIPE_TAX` | off | `1` turns on Stripe Tax for Checkout (register your tax obligations in Stripe first). |
 | `STRIPE_PLATFORM_COUNTRY` | `US` | Country of your Stripe account. Creators elsewhere are onboarded as payout-only "recipients". |
+| `TRAILER_MAX_MB` | `200` | Largest store-page trailer (MP4/WebM) a creator can upload. Trailers are streamed to disk and copied to object storage once; mind your disk size. |
 | `REFUND_WINDOW_DAYS` / `REFUND_MAX_PLAY_MINUTES` | `14` / `120` | Player self-serve refund rule. Keep it in line with the Refund Policy text (`public/js/legal.js`). |
 | `SENTRY_DSN` | *(none)* | Sends server and browser errors to Sentry (or GlitchTip). |
 | `DATA_DIR` | `./data` | Where everything the server writes lives: `db.json`, uploaded builds, uploaded images and the signing key. Point it at your persistent disk. |

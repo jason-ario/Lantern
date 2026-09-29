@@ -165,7 +165,8 @@ On the Publish page, provide:
 - A price, a short description and a longer description
 - Up to 8 tags
 - Key art: one PNG, JPG or WebP image up to 8 MB, cropped for the capsule, header and banner, so keep the subject centred
-- Up to 6 screenshots, 16:9 at 1280×720 or larger
+- Up to 6 screenshots, 16:9 at 1280×720 or larger. Reorder, remove or add them any time from **Edit store page** (drag them, or use the arrows)
+- Optional trailer: MP4 (H.264 + AAC) or WebM, 16:9, up to 200 MB. It always plays first on your store page, and when your game is in the Featured slot on the store home it plays there instead of the banner (muted until the player turns sound on). Upload or replace it at publish time or from **Edit store page**
 - Whether to offer the demo
 - **The vibe:** the AI tools you built it with (at least one, up to five), and optionally the prompt that started it (up to 400 characters) and roughly how many hours it took. It shows on your store page under "How it was vibed", and players can browse and search by tool.
 

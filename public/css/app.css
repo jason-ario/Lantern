@@ -1253,3 +1253,52 @@ body.in-game .site-footer { display: none; }
 .acct-gate .gate-cover { width: 100%; max-width: 460px; aspect-ratio: 460 / 215; object-fit: cover; border-radius: var(--r); margin: 0 auto 18px; display: block; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
 @media (max-width: 640px) { .nav-auth .nav-signup { display: none; } }
 .acct-gate .gate-back { margin-top: 18px; }
+
+/* ---------- Trailers ---------- */
+/* Featured slot: the trailer replaces the banner (the banner stays underneath as the poster/fallback). */
+.feat-main > .feat-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; background: #000; }
+/* isolate: keep these z-indexes inside the slot so the carousel arrows stay on top and clickable */
+.feat-main.has-video { isolation: isolate; }
+.feat-main.has-video::before { z-index: 1; }
+.feat-main.has-video > :not(.feat-video) { z-index: 2; }
+.feat-sound { position: absolute; top: 14px; right: calc(340px + 14px); z-index: 3; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #ffffff33; background: #0a0614b3; color: #fff; backdrop-filter: blur(8px); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.feat-sound:hover, .feat-sound:focus-visible { border-color: var(--hot); box-shadow: 0 0 18px #ff3ea566; transform: scale(1.05); }
+.feat-sound[hidden] { display: none; }
+@media (max-width: 900px) { .feat-sound { right: 14px; } }
+
+/* Store-page gallery: the trailer is the first slot. */
+.gp-stage.is-video { padding: 0; background: #000; }
+.gp-stage video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.gp-thumbs .thumb-video { position: relative; display: grid; place-items: center; color: #fff; }
+.gp-thumbs .thumb-video::after { content: "TRAILER"; position: absolute; left: 5px; bottom: 4px; font: 700 9px/1 'JetBrains Mono', monospace; letter-spacing: .08em; color: #fff; text-shadow: 0 1px 3px #000; }
+.gp-thumbs .thumb-video svg { width: 30px; height: 30px; padding: 7px; border-radius: 50%; background: #0a0614b3; border: 1px solid #ffffff44; }
+
+/* Creator: trailer + screenshot manager (Publish and Edit store page). */
+.trailer-edit { display: flex; gap: 14px; align-items: flex-start; }
+.trailer-edit video { width: 220px; aspect-ratio: 16/9; background: #000; border-radius: var(--r-sm); flex: none; }
+.trailer-edit-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.trailer-file { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.trailer-file svg { color: var(--play-2); width: 14px; height: 14px; }
+.trailer-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.trailer-btns label { cursor: pointer; }
+.shot-mgr { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+.shot-tile { position: relative; aspect-ratio: 16/9; background-size: cover; background-position: center; background-color: var(--bg-2); border: 2px solid var(--line-2); border-radius: var(--r-sm); cursor: grab; user-select: none; transition: border-color .12s, opacity .12s, transform .12s; }
+.shot-tile:hover { border-color: var(--text-3); }
+.shot-tile.dragging { opacity: .35; }
+.shot-tile.drop-target { border-color: var(--hot); box-shadow: 0 0 0 2px #ff3ea555; transform: scale(1.03); }
+.shot-n { position: absolute; left: 5px; top: 5px; min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; border-radius: 10px; background: #0a0614d9; color: #fff; font: 700 11px/1 'JetBrains Mono', monospace; }
+.shot-tile:first-child .shot-n { background: var(--hot); }
+.shot-new { position: absolute; right: 5px; top: 5px; padding: 3px 6px; border-radius: var(--r-sm); background: #2de2ff; color: #03141a; font: 700 9px/1 'JetBrains Mono', monospace; letter-spacing: .06em; text-transform: uppercase; }
+.shot-tools { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 2px; justify-content: flex-end; padding: 4px; background: linear-gradient(0deg, #000c, #0000); opacity: 0; transition: opacity .12s; }
+.shot-tile:hover .shot-tools, .shot-tile:focus-within .shot-tools { opacity: 1; }
+.shot-tools button { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid #ffffff33; border-radius: var(--r-sm); background: #0a0614d9; color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
+.shot-tools button:hover:not(:disabled) { border-color: var(--hot); }
+.shot-tools button:disabled { opacity: .3; cursor: default; }
+.shot-tools button svg { width: 12px; height: 12px; }
+.shot-add { aspect-ratio: 16/9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px dashed var(--line-2); border-radius: var(--r-sm); color: var(--text-3); cursor: pointer; transition: border-color .15s, color .15s; }
+.shot-add:hover { border-color: var(--hot); color: var(--text); }
+.shot-add b { font-size: 22px; line-height: 1; }
+.shot-add small { font-size: 11px; }
+.warn-note { padding: 8px 12px; border-left: 3px solid #ffb13d; background: #ffb13d14; font-size: 13px; }
+@media (hover: none) { .shot-tools { opacity: 1; } }
+@media (max-width: 640px) { .trailer-edit { flex-direction: column; } .trailer-edit video { width: 100%; } }

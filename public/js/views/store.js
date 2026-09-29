@@ -137,6 +137,7 @@ export async function render(root) {
       <div class="sec-h"><h2>Featured vibes</h2><span class="sec-note">The newest arrivals, then the games players love most</span></div>
       <div class="feat" id="feat">
         <a class="feat-main" id="featMain" href="#" data-link></a>
+        <button class="feat-sound" id="featSound" type="button" hidden></button>
         <div class="feat-side" id="featSide"></div>
         <button class="feat-arrow prev" aria-label="Previous">‹</button><button class="feat-arrow next" aria-label="Next">›</button>
       </div>
@@ -211,15 +212,40 @@ export async function render(root) {
   bindStoreBar(root);
 
   // --- featured carousel ---
-  let fi = 0, timer = null;
+  // A game with a trailer plays it (muted until the viewer turns sound on) in place of the
+  // banner, and the carousel waits for it to finish instead of moving on after 7 seconds.
+  let fi = 0, timer = null, hovering = false, video = null, muted = true;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const soundBtn = $('#featSound', root);
+  const paintSound = () => {
+    soundBtn.hidden = !video;
+    soundBtn.innerHTML = muted ? icons.soundOff : icons.soundOn;
+    soundBtn.setAttribute('aria-label', muted ? 'Turn trailer sound on' : 'Mute trailer');
+    soundBtn.title = muted ? 'Sound on' : 'Mute';
+  };
+  const stopVideo = () => { if (video) { video.pause(); video.remove(); video = null; } $('#featMain', root)?.classList.remove('has-video'); paintSound(); };
   const showFeat = (i) => {
-    fi = (i + feat.length) % feat.length;
+    fi = (i + feat.length) % feat.length; console.log("showFeat", i, fi, new Error().stack.split("\n").slice(2,3).join(" / "));
     const g = feat[fi];
     const r = ratingLabel(g.rating);
     const main = $('#featMain', root);
+    stopVideo();
     main.href = `/app/${g.id}`;
     main.style.backgroundImage = `url('${g.media.hero}')`;
     main.innerHTML = `${logo(g, 'xl')}<div class="feat-caption">${esc(g.shortDescription)}</div>`;
+    if (g.media.trailer && !reduceMotion) {
+      const v = document.createElement('video');
+      Object.assign(v, { src: g.media.trailer, poster: g.media.hero, muted, autoplay: true, playsInline: true, preload: 'auto', className: 'feat-video' });
+      v.setAttribute('aria-hidden', 'true');
+      const fallBack = () => { if (video === v) { stopVideo(); auto(); } }; // can't play: keep the banner, resume the carousel
+      v.addEventListener('ended', () => { if (video === v) { showFeat(fi + 1); auto(); } });
+      v.addEventListener('error', fallBack);
+      main.prepend(v); main.classList.add('has-video');
+      video = v;
+      clearInterval(timer);
+      v.play().catch((err) => { if (err?.name !== 'AbortError') fallBack(); });
+    }
+    paintSound();
     $('#featSide', root).innerHTML = `
       <div class="fs-title">${esc(g.title)}</div>
       <div class="fs-shots">${g.media.screenshots.slice(0, 4).map((s) => `<div style="background-image:url('${esc(s)}')"></div>`).join('')}</div>
@@ -228,13 +254,19 @@ export async function render(root) {
       <div class="fs-foot"><span class="${r.cls}">${r.label}</span>${g.demo ? '<span class="demo-inline">Instant demo</span>' : ''}${priceTag(g)}</div>`;
     $$('#featDots button', root).forEach((b, j) => b.classList.toggle('on', j === fi));
   };
-  const auto = () => { clearInterval(timer); timer = setInterval(() => showFeat(fi + 1), 7000); };
+  // Images rotate every 7s (not while hovered); a trailer moves on when it ends.
+  const auto = () => { clearInterval(timer); if (!hovering && !video) timer = setInterval(() => showFeat(fi + 1), 7000); };
   showFeat(0); auto();
-  $('#feat', root).addEventListener('mouseenter', () => clearInterval(timer));
-  $('#feat', root).addEventListener('mouseleave', auto);
-  $('.feat-arrow.prev', root).onclick = () => showFeat(fi - 1);
-  $('.feat-arrow.next', root).onclick = () => showFeat(fi + 1);
-  $('#featDots', root).onclick = (e) => { if (e.target.dataset.i) showFeat(+e.target.dataset.i); };
+  $('#feat', root).addEventListener('mouseenter', () => { hovering = true; clearInterval(timer); });
+  $('#feat', root).addEventListener('mouseleave', () => { hovering = false; auto(); });
+  $('.feat-arrow.prev', root).onclick = () => { showFeat(fi - 1); auto(); };
+  $('.feat-arrow.next', root).onclick = () => { showFeat(fi + 1); auto(); };
+  $('#featDots', root).onclick = (e) => { if (e.target.dataset.i) { showFeat(+e.target.dataset.i); auto(); } };
+  soundBtn.onclick = () => {
+    muted = !muted;
+    if (video) { video.muted = muted; if (video.paused) video.play().catch(() => {}); }
+    paintSound();
+  };
 
   // --- trending scroller ---
   $$('[data-scroll]', root).forEach((b) => { b.onclick = () => $('#trending', root).scrollBy({ left: +b.dataset.scroll * 600, behavior: 'smooth' }); });
@@ -255,5 +287,5 @@ export async function render(root) {
   });
   showTab('top');
 
-  return () => clearInterval(timer);
+  return () => { clearInterval(timer); stopVideo(); };
 }

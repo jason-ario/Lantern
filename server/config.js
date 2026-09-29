@@ -15,6 +15,8 @@ export const DATA_DIR = path.resolve(env.DATA_DIR ?? 'data');
 export const DB_FILE = path.join(DATA_DIR, 'db.json');
 export const PUBLISHED_PACKAGES_DIR = path.join(DATA_DIR, 'packages');
 export const USER_MEDIA_DIR = path.join(DATA_DIR, 'media');
+// Store-page trailers (MP4 or WebM). Streamed straight to disk, so the cap is about disk/bucket space.
+export const TRAILER_MAX_MB = Math.max(1, Number(env.TRAILER_MAX_MB ?? 200));
 export const BUILTIN_PACKAGES_DIR = path.resolve('packages'); // shipped with the code, read-only
 
 // Creator/admin access (Publish, site reset). Locally with no password set,

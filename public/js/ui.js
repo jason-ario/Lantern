@@ -144,5 +144,7 @@ export const icons = {
   shield: '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.5 8 11 4.6-1.5 8-6 8-11V5z"/></svg>',
   close: '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z"/></svg>',
   expand: '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>',
+  soundOff: '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 9h4l5-4v14l-5-4H3zm13.6.2L18.4 11l1.8-1.8 1.4 1.4-1.8 1.8 1.8 1.8-1.4 1.4-1.8-1.8-1.8 1.8-1.4-1.4 1.8-1.8-1.8-1.8z"/></svg>',
+  soundOn: '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 9h4l5-4v14l-5-4H3zm12.5-1.9a6.5 6.5 0 0 1 0 9.8l-1.4-1.4a4.5 4.5 0 0 0 0-7zm2.8-2.8a10.5 10.5 0 0 1 0 15.4l-1.4-1.4a8.5 8.5 0 0 0 0-12.6z"/></svg>',
   grid: '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>',
 };

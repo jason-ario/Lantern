@@ -11,8 +11,8 @@ import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
 import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
 import { rankings, publicRank, creatorRank } from './ranking.js';
-import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES } from './config.js';
-import { putDir, putObject } from './storage.js';
+import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES, TRAILER_MAX_MB } from './config.js';
+import { putDir, putObject, putFile } from './storage.js';
 import { emails } from './email.js';
 import { reportError } from './monitoring.js';
 import { LEGAL_VERSIONS } from '../public/js/legal.js';
@@ -208,7 +208,7 @@ function playStats(userId, gameId) {
   return { playtimeSeconds: seconds, lastPlayedAt: last, sessions: sessions.length, achievements: { unlocked, total } };
 }
 
-const siteFeatures = () => ({ google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE, requireApproval: requireApproval(), legal: LEGAL_VERSIONS });
+const siteFeatures = () => ({ google: googleEnabled(), stripe: stripeEnabled(), currency: CURRENCY, gamesOrigin: GAMES_ORIGIN || null, signing: true, creatorShare: CREATOR_SHARE, trailerMaxMb: TRAILER_MAX_MB, requireApproval: requireApproval(), legal: LEGAL_VERSIONS });
 function userState(user, session) {
   if (!user) return {
     user: null,
@@ -771,7 +771,8 @@ async function backupUploads(gameId, version) {
   try {
     if (version) await putDir(path.join(PUBLISHED_PACKAGES_DIR, gameId, version), `packages/${gameId}/${version}`);
     const media = path.join(USER_MEDIA_DIR, gameId);
-    if (fs.existsSync(media)) await putDir(media, `media/${gameId}`);
+    // Trailers are big and uploaded once by their own route; don't re-send them on every art edit.
+    if (fs.existsSync(media)) await putDir(media, `media/${gameId}`, { skip: (f) => VIDEO_EXT_RE.test(f) });
   } catch (err) { reportError(err, { where: 'backupUploads', gameId }); }
 }
 function notifyAdmins(subject, line, url) {
@@ -844,11 +845,88 @@ route('PATCH', '/api/creator/games/:id', async ({ user, session, params, body })
     const stamp = Date.now().toString(36);
     const media = { ...g.media };
     for (const k of ['cover', 'header', 'hero']) if (m[k]) media[k] = saveImage(g.id, `${k}-${stamp}`, m[k]);
-    if (Array.isArray(m.screenshots) && m.screenshots.length) media.screenshots = m.screenshots.slice(0, 6).map((x, i) => saveImage(g.id, `shot${i + 1}-${stamp}`, x));
+    // Each entry is either a new image (data URL) or one of the game's current screenshot
+    // URLs, so creators can reorder, drop and add screenshots without re-uploading the rest.
+    if (Array.isArray(m.screenshots) && m.screenshots.length) {
+      const current = new Set(g.media.screenshots ?? []);
+      media.screenshots = m.screenshots.slice(0, 6).map((x, i) => {
+        if (typeof x === 'string' && current.has(x)) return x;
+        if (typeof x === 'string' && x.startsWith('data:')) return saveImage(g.id, `shot${i + 1}-${stamp}`, x);
+        fail(400, 'Screenshots must be new images or ones already on this store page');
+      });
+    }
     patch.media = media;
   }
   db.update(g, { ...patch, moderation: [...(g.moderation ?? []), { at: db.now(), action: 'edited', by: user.id, fields: Object.keys(patch) }] });
   if (patch.media) await backupUploads(g.id);
+  return { ok: true, game: publicGame(g) };
+});
+// ----- store-page trailer -----
+// The video is the raw request body (not JSON/base64), streamed to disk with a size cap.
+// It always plays first in the store-page gallery and in the featured slot on the store home.
+const VIDEO_EXT_RE = /\.(mp4|webm)$/i;
+const TRAILER_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm' };
+function sniffVideo(head) {
+  if (head.length >= 12 && head.toString('latin1', 4, 8) === 'ftyp') return 'mp4';
+  if (head.length >= 4 && head.readUInt32BE(0) === 0x1a45dfa3) return 'webm';
+  return null;
+}
+function removeTrailerFile(url) {
+  if (!url?.startsWith('/user-media/')) return;
+  const file = path.join(USER_MEDIA_DIR, url.slice('/user-media/'.length));
+  if (file.startsWith(USER_MEDIA_DIR + path.sep)) fs.rmSync(file, { force: true });
+}
+route('PUT', '/api/creator/games/:id/trailer', async ({ user, session, params, req }) => {
+  const g = requireGame(params.id);
+  if (!canUpdateGame(user, session, g)) fail(403, 'Only the game’s creator can edit it');
+  limit(`trailer:${user.id}`, 20, 60 * 60e3);
+  const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  const ext = TRAILER_TYPES[type] ?? fail(415, 'Trailers must be MP4 or WebM videos');
+  const max = TRAILER_MAX_MB * 1024 * 1024;
+  const declared = Number(req.headers['content-length'] ?? 0);
+  if (declared > max) { req.resume(); fail(413, `Trailers can be up to ${TRAILER_MAX_MB} MB`); }
+  const dir = path.join(USER_MEDIA_DIR, g.id);
+  fs.mkdirSync(dir, { recursive: true });
+  const name = `trailer-${Date.now().toString(36)}.${ext}`;
+  const tmp = path.join(dir, `.${name}.part`);
+  let size = 0; let head = Buffer.alloc(0);
+  try {
+    await new Promise((resolve, reject) => {
+      const out = fs.createWriteStream(tmp);
+      req.on('data', (c) => {
+        size += c.length;
+        if (head.length < 16) head = Buffer.concat([head, c.subarray(0, 16 - head.length)]);
+        if (size > max) { req.unpipe(out); out.destroy(); req.resume(); reject(new HttpError(413, `Trailers can be up to ${TRAILER_MAX_MB} MB`)); }
+      });
+      req.on('error', reject);
+      out.on('error', reject);
+      out.on('finish', resolve);
+      req.pipe(out);
+    });
+    if (!size) fail(400, 'Empty upload');
+    const kind = sniffVideo(head);
+    if (!kind) fail(415, 'That file doesn’t look like an MP4 or WebM video');
+    const finalName = kind === ext ? name : name.replace(/\.\w+$/, `.${kind}`);
+    fs.renameSync(tmp, path.join(dir, finalName));
+    const url = `/user-media/${g.id}/${finalName}`;
+    try { await putFile(path.join(dir, finalName), `media/${g.id}/${finalName}`, kind === 'mp4' ? 'video/mp4' : 'video/webm'); }
+    catch (err) { reportError(err, { where: 'trailer backup', gameId: g.id }); }
+    const old = g.media?.trailer;
+    db.update(g, { media: { ...g.media, trailer: url }, moderation: [...(g.moderation ?? []), { at: db.now(), action: 'edited', by: user.id, fields: ['trailer'] }] });
+    if (old && old !== url) removeTrailerFile(old);
+    return { ok: true, trailer: url, sizeBytes: size, game: publicGame(g) };
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+});
+route('DELETE', '/api/creator/games/:id/trailer', ({ user, session, params }) => {
+  const g = requireGame(params.id);
+  if (!canUpdateGame(user, session, g)) fail(403, 'Only the game’s creator can edit it');
+  const old = g.media?.trailer;
+  if (!old) return { ok: true, game: publicGame(g) };
+  const { trailer, ...media } = g.media;
+  db.update(g, { media, moderation: [...(g.moderation ?? []), { at: db.now(), action: 'edited', by: user.id, fields: ['trailer'] }] });
+  removeTrailerFile(old);
   return { ok: true, game: publicGame(g) };
 });
 route('POST', '/api/games/:id/versions', async ({ user, session, params, body, ctx }) => {
@@ -1364,7 +1442,7 @@ export async function handleApi(req, res, url, body, ctx) {
     const { user, session } = authenticate(req, res, ctx);
     if (!user && !r.public) fail(401, 'Sign up or sign in to continue');
     const params = Object.fromEntries(Object.entries(m.groups ?? {}).map(([k, v]) => [k, decodeURIComponent(v)]));
-    return reqCtx.run({ session, user }, () => r.handler({ user, session, params, body, url, ctx, res }));
+    return reqCtx.run({ session, user }, () => r.handler({ user, session, params, body, url, ctx, req, res }));
   }
   fail(404, 'No such endpoint');
 }
