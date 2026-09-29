@@ -171,15 +171,34 @@ try {
     check('Older version numbers are refused', lower.status === 409);
     const upd = await api('POST', '/api/games/skylark/versions', { version: '1.1.0', releaseNotes: 'The dusk update.', package: zip('1.1.0') });
     check('Publish update 1.1.0 with delta stats', upd.status === 200 && upd.body.delta.changedFiles === 2 && upd.body.delta.totalFiles === 3, JSON.stringify(upd.body?.delta));
+    // with automatic updates off, the Library's Update badge is a working button
+    await page.evaluate(() => localStorage.setItem('vibe.autoDownload', '0'));
     await page.goto(`${A}/library`); await page.waitForSelector('.lib-card');
-    check('Library shows "update available"', await page.isVisible('.upd-strip') && await page.isVisible('.lib-badge.upd'));
+    check('Library shows "update available"', await page.isVisible('.upd-strip') && await page.isVisible('button.lib-badge.upd'));
+    await page.click('button.lib-badge.upd');
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('vibe.installs.v1')).skylark.version === '1.1.0'; } catch { return false; } }, null, { timeout: 15000 });
+    await page.waitForSelector('.toast');
+    check('Clicking the Update badge updates the download', /updated to v1\.1\.0/.test(await page.textContent('#toasts')) && !(await page.isVisible('button.lib-badge.upd')));
     await page.goto(`${A}/play/skylark`);
     await page.waitForSelector('#rtSplash.gone', { state: 'attached', timeout: 15000 });
     const ver = await page.textContent('#rtVer');
-    await page.waitForSelector('.toast');
-    const toastText = await page.textContent('#toasts');
-    check('Launching applies the update, downloading only changed files', ver === 'v1.1.0' && /reused 1|1 files unchanged|unchanged/.test(toastText), `${ver} · ${toastText.slice(0, 120)}`);
+    check('Launch runs the updated download', ver === 'v1.1.0' && /Local/.test(await page.textContent('#rtSrc')), ver);
     await quit(page);
+    // a failed update never runs the old download while online: it streams the current version
+    await page.evaluate(async () => { const ix = JSON.parse(localStorage.getItem('vibe.installs.v1')); ix.skylark.version = '1.0.0'; localStorage.setItem('vibe.installs.v1', JSON.stringify(ix)); });
+    await ctx.route('**/api/games/skylark/build', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Build service unavailable"}' }));
+    await page.goto(`${A}/play/skylark`);
+    await page.waitForFunction(() => /Couldn't update/.test(document.querySelector('#toasts')?.textContent ?? ''), null, { timeout: 15000 });
+    await ctx.unroute('**/api/games/skylark/build');
+    await page.waitForSelector('#rtSplash.gone', { state: 'attached', timeout: 15000 });
+    const ver2 = await page.textContent('#rtVer'), src2 = await page.textContent('#rtSrc'), t2 = await page.textContent('#toasts');
+    check('Failed update streams the latest version and says so', ver2 === 'v1.1.0' && /Streaming/.test(src2) && /Couldn't update/.test(t2), `${ver2} · ${src2} · ${t2.slice(0, 100)}`);
+    await quit(page);
+    // opening the store updates downloads automatically, and a rotated store key is re-pinned
+    await page.evaluate(() => { localStorage.setItem('vibe.autoDownload', '1'); localStorage.setItem('vibe.packageKey.v1', JSON.stringify({ keyId: 'old-key-000000', jwk: {} })); });
+    await page.goto(`${A}/library`); await page.waitForSelector('.lib-card');
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('vibe.installs.v1')).skylark.version === '1.1.0'; } catch { return false; } }, null, { timeout: 15000 });
+    check('Downloads update automatically on start, even after a store key change', !(await page.isVisible('button.lib-badge.upd')));
     const g = await api('GET', '/api/games/skylark');
     check('Patch notes + new achievement published', g.body.versions.length === 2 && g.body.achievements.some((a) => a.id === 'high_flyer'));
     await page.goto(`${A}/library/skylark`); await page.waitForSelector('.news');

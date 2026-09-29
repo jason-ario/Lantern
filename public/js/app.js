@@ -16,6 +16,7 @@ import * as legal from './views/legal.js';
 import { renderVerify, renderReset } from './views/account-links.js';
 import { openAuth } from './views/auth.js';
 import { flush } from './offline/sync.js';
+import * as packages from './offline/packages.js';
 import { setNavigator, setPrevious } from './nav.js';
 import { migrateLegacyStorage } from './migrate.js';
 
@@ -164,5 +165,18 @@ window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof T
   renderChrome();
   await render();
   flush(); // upload anything queued while offline
+  // Keep downloaded games current, like a launcher does on start (unless the player turned off
+  // automatic downloads in Profile; then the Update badges in the Library do it on request).
+  let autoDl = true; try { autoDl = localStorage.getItem('vibe.autoDownload') !== '0'; } catch { /* ignore */ }
+  if (!state.offline && autoDl) {
+    packages.autoUpdate([...state.byId.values()], {
+      onResult: (r) => {
+        const g = state.byId.get(r.gameId);
+        if (r.ok) toast(`<b>${esc(g?.title ?? r.gameId)}</b> updated to v${esc(r.version)}`, { kind: 'ok' });
+        else toast(`Couldn't update <b>${esc(g?.title ?? r.gameId)}</b>: ${esc(r.error)}`, { kind: 'error' });
+        if (location.pathname.startsWith('/library')) render();
+      },
+    }).catch(() => {});
+  }
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();

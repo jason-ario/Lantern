@@ -10,7 +10,9 @@ const FONTS = 'vibe-fonts-v1';
 const PRECACHE = __PRECACHE__;
 
 // API reads that are useful offline (network first, cached copy when offline).
-const API_CACHEABLE = /^\/api\/(state|catalog|library|profile|wishlist|orders|keys\/packages|games\/[^/]+(\/(achievements|build))?)$/; // saves: see offline/sync.js
+// Build manifests are never served from here: a slow server must not hand out an old build as the
+// "current" one (installing needs the network anyway, and installed builds keep their own manifest).
+const API_CACHEABLE = /^\/api\/(state|catalog|library|profile|wishlist|orders|keys\/packages|games\/[^/]+(\/achievements)?)$/; // saves: see offline/sync.js
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

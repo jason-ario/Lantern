@@ -61,7 +61,7 @@ export async function render(root, _, query) {
           <section class="panel">
             <h3>Offline &amp; downloads</h3>
             <p class="muted small" id="dlUsage">…</p>
-            <label class="f check"><input type="checkbox" id="autoDl" ${localStorage.getItem('vibe.autoDownload') !== '0' ? 'checked' : ''}><span>Download games after purchase so they play offline</span></label>
+            <label class="f check"><input type="checkbox" id="autoDl" ${localStorage.getItem('vibe.autoDownload') !== '0' ? 'checked' : ''}><span>Download games after purchase so they play offline, and keep them updated automatically</span></label>
             <button class="btn btn-ghost btn-sm" id="clearDl">Remove all downloads</button>
           </section>
           ${state.creator.admin ? `<section class="panel">

@@ -66,15 +66,24 @@ export async function render(root, [id], query) {
   // 1) Installed for offline play? Bring it up to date (delta) and load the verified local copy.
   let local = null;
   if (owned && !reviewVersion && packages.installed(id)) {
+    let useLocal = true;
     if (packages.status(g) === 'update' && !state.offline) {
       const from = packages.installed(id).version;
       note(`Updating ${from} → ${g.version.version}…`);
       try {
-        const r = await packages.install(id, { onProgress: (p) => note(`Updating to v${g.version.version} · ${bytes(p.done)} of ${bytes(p.total)}`) });
+        const r = await packages.install(id, { expectVersion: g.version.version, onProgress: (p) => note(`Updating to v${g.version.version} · ${bytes(p.done)} of ${bytes(p.total)}`) });
         toast(`${icons.box} <b>${esc(g.title)}</b> updated to v${esc(r.version)} · downloaded ${bytes(r.downloadedBytes)} (${r.reusedFiles} files unchanged)`, { kind: 'ok' });
-      } catch (err) { console.warn('update failed, launching installed build', err); }
+      } catch (err) {
+        // Never run an out-of-date copy while online: stream the current version instead.
+        console.warn('offline copy update failed; streaming the latest version', err);
+        toast(`Couldn't update the downloaded copy of <b>${esc(g.title)}</b> (${esc(err.message)}). Playing the latest version online instead.`, { kind: 'error' });
+        useLocal = false;
+      }
     }
-    try { note('Verifying local build…'); local = await packages.loadFiles(id); } catch (err) { console.warn(err); toast(esc(err.message), { kind: 'error' }); }
+    if (useLocal) {
+      try { note('Verifying local build…'); local = await packages.loadFiles(id); }
+      catch (err) { console.warn(err); if (state.offline) toast(esc(err.message), { kind: 'error' }); }
+    }
   }
 
   // 2) Start a session (online), or a local session when offline with an installed build.

@@ -61,7 +61,13 @@ function renderHome(main, entries, recent) {
   const total = entries.reduce((t, e) => t + e.playtimeSeconds, 0);
   const ach = entries.reduce((t, e) => t + e.achievements.unlocked, 0);
   const achTotal = entries.reduce((t, e) => t + e.achievements.total, 0);
-  const badge = (g) => { const st = packages.status(g); return st === 'update' ? '<span class="lib-badge upd">Update</span>' : st === 'ready' ? `<span class="lib-badge off" title="Downloaded — plays offline">${icons.box}</span>` : ''; };
+  const badge = (g) => {
+    const st = packages.status(g);
+    if (st === 'update') return packages.installing(g.id)
+      ? '<span class="lib-badge upd busy">Updating…</span>'
+      : `<button type="button" class="lib-badge upd" data-update="${esc(g.id)}" title="Update to v${esc(g.version.version)}">Update</button>`;
+    return st === 'ready' ? `<span class="lib-badge off" title="Downloaded — plays offline">${icons.box}</span>` : '';
+  };
   const updates = entries.filter((e) => packages.status(e.g) === 'update');
   const card = (e, big) => `<div class="lib-card ${big ? 'big' : ''}">${badge(e.g)}
       <a class="lib-card-art" href="/library/${esc(e.g.id)}" data-link style="background-image:url('${esc(e.g.media.cover)}')">${logo(e.g, 'cover')}</a>
@@ -80,10 +86,20 @@ function renderHome(main, entries, recent) {
     <div class="sec-h"><h2>All games <span class="muted">(${entries.length})</span></h2><span class="sec-note">Sorted by name</span></div>
     <div class="lib-grid">${[...entries].sort((a, b) => a.g.title.localeCompare(b.g.title)).map((e) => card(e, false)).join('')}</div>
   </div>`;
+  $$('[data-update]', main).forEach((b) => b.addEventListener('click', async (ev) => {
+    ev.preventDefault(); ev.stopPropagation();
+    const e = entries.find((x) => x.g.id === b.dataset.update); if (!e) return;
+    b.disabled = true; b.textContent = 'Updating…';
+    try {
+      const r = await packages.install(e.g.id, { expectVersion: e.g.version?.version, onProgress: (p) => { if (p.total) b.textContent = `${Math.round((p.done / p.total) * 100)}%`; } });
+      toast(`<b>${esc(e.g.title)}</b> updated to v${esc(r.version)} · ${bytes(r.downloadedBytes)} downloaded`, { kind: 'ok' });
+    } catch (err) { toast(`${esc(e.g.title)}: ${esc(err.message)}`, { kind: 'error' }); }
+    renderHome(main, entries, recent);
+  }));
   $('#updAll', main)?.addEventListener('click', async (ev) => {
     ev.currentTarget.disabled = true; ev.currentTarget.textContent = 'Updating…';
     for (const e of updates) {
-      try { const r = await packages.install(e.g.id); toast(`<b>${esc(e.g.title)}</b> updated to v${esc(r.version)} · ${bytes(r.downloadedBytes)} downloaded`, { kind: 'ok' }); }
+      try { const r = await packages.install(e.g.id, { expectVersion: e.g.version?.version }); toast(`<b>${esc(e.g.title)}</b> updated to v${esc(r.version)} · ${bytes(r.downloadedBytes)} downloaded`, { kind: 'ok' }); }
       catch (err) { toast(`${esc(e.g.title)}: ${esc(err.message)}`, { kind: 'error' }); }
     }
     renderHome(main, entries, recent);
@@ -132,7 +148,7 @@ async function renderDetail(main, entry) {
     const b = e.target.closest('[data-offline]');
     if (!b) return;
     if (b.dataset.offline === 'remove') { await packages.remove(g.id); toast(`Removed the offline copy of <b>${esc(g.title)}</b>`); refreshBlock(); return; }
-    const p = packages.install(g.id, { onProgress: (x) => { const bar = $('#instBar', main), t = $('#instProg', main); if (bar) bar.style.width = `${x.total ? (x.done / x.total) * 100 : 0}%`; if (t) t.textContent = `${bytes(x.done)} of ${bytes(x.total)}`; } });
+    const p = packages.install(g.id, { expectVersion: g.version?.version, onProgress: (x) => { const bar = $('#instBar', main), t = $('#instProg', main); if (bar) bar.style.width = `${x.total ? (x.done / x.total) * 100 : 0}%`; if (t) t.textContent = `${bytes(x.done)} of ${bytes(x.total)}`; } });
     refreshBlock();
     try {
       const r = await p;

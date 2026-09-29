@@ -51,12 +51,15 @@ async function platformKey(expectedKeyId) {
   let pinned = null;
   try { pinned = JSON.parse(localStorage.getItem(KEY_PIN) ?? 'null'); } catch { /* ignore */ }
   if (!pinned || pinned.keyId !== expectedKeyId) {
+    // The key comes from the store over the same authenticated HTTPS connection as everything
+    // else, so a rotated key (e.g. after a server move) is re-pinned rather than blocking every
+    // future update. The pin still protects what matters: files already on this device are only
+    // run if they verify against the key they were downloaded with, and are re-downloaded otherwise.
     const k = await api.packageKey();
-    if (pinned && pinned.keyId !== k.keyId) throw new Error('The store\'s package signing key changed, so new builds are not trusted automatically. If you expected this, go to Profile → Remove all downloads, then download again.');
     pinned = k;
     try { localStorage.setItem(KEY_PIN, JSON.stringify(k)); } catch { /* ignore */ }
   }
-  if (pinned.keyId !== expectedKeyId) throw new Error('Build is signed with an unknown key');
+  if (pinned.keyId !== expectedKeyId) throw new Error('This download was signed with an old store key. Update or re-download it to play offline.');
   return crypto.subtle.importKey('jwk', { ...pinned.jwk, ext: true }, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
 }
 
@@ -67,19 +70,20 @@ export async function verifySignature(manifest, signature) {
 
 // ---------- install / update ----------
 const inFlight = new Map();
-export function install(gameId, { onProgress } = {}) {
+export function install(gameId, { onProgress, expectVersion } = {}) {
   if (inFlight.has(gameId)) return inFlight.get(gameId);
-  const p = doInstall(gameId, onProgress).finally(() => inFlight.delete(gameId));
+  const p = doInstall(gameId, onProgress, expectVersion).finally(() => inFlight.delete(gameId));
   inFlight.set(gameId, p);
   return p;
 }
 export const installing = (gameId) => inFlight.has(gameId);
 
-async function doInstall(gameId, onProgress = () => {}) {
+async function doInstall(gameId, onProgress = () => {}, expectVersion = null) {
   if (!supported()) throw new Error('This browser cannot store games for offline play');
   const build = await api.build(gameId);
   const { manifest, signature } = build;
   if (manifest.gameId !== gameId) throw new Error('Build manifest does not match this game');
+  if (expectVersion && manifest.version !== expectVersion) throw new Error(`The store sent v${manifest.version} instead of v${expectVersion}; try again in a moment`);
   if (!(await verifySignature(manifest, signature))) throw new Error('Signature check failed — build rejected');
 
   const cache = await caches.open(CACHE);
@@ -107,6 +111,20 @@ async function doInstall(gameId, onProgress = () => {}) {
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   onProgress({ done: total, total, phase: 'done' });
   return { version: manifest.version, previous, downloadedBytes: downloaded, reusedFiles: reused, totalBytes: total, fileCount: manifest.files.length };
+}
+
+// Bring every downloaded game up to date in the background (like a launcher does on start).
+// Returns [{ gameId, ok, version?, error? }]; failures are reported, never swallowed.
+export async function autoUpdate(games, { onResult = () => {} } = {}) {
+  if (!supported()) return [];
+  const out = [];
+  for (const g of games) {
+    if (status(g) !== 'update' || installing(g.id)) continue;
+    try { const r = await install(g.id, { expectVersion: g.version?.version }); out.push({ gameId: g.id, ok: true, version: r.version }); }
+    catch (err) { out.push({ gameId: g.id, ok: false, error: err.message }); }
+    onResult(out[out.length - 1]);
+  }
+  return out;
 }
 
 export async function remove(gameId) {
