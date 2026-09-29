@@ -65,3 +65,38 @@ export const DEMO_CONTENT_MODES = DEMO_MODES;
 // Creator revenue share (planned payout policy): creators keep this fraction of
 // each sale's net revenue (after payment processing fees, taxes and refunds).
 export const CREATOR_SHARE = Math.min(1, Math.max(0, Number(env.CREATOR_SHARE ?? 0.9)));
+
+// ---------------- launch settings ----------------
+// Database: PostgreSQL when set (e.g. Render's internal database URL); JSON file otherwise.
+export const DATABASE_URL = env.DATABASE_URL ?? '';
+
+// Object storage (S3-compatible: Cloudflare R2, AWS S3, Backblaze B2…) for uploads and backups.
+export const S3_BUCKET = env.S3_BUCKET ?? '';
+export const S3_ENDPOINT = env.S3_ENDPOINT ?? '';            // e.g. https://<account>.r2.cloudflarestorage.com
+export const S3_REGION = env.S3_REGION ?? 'auto';            // 'auto' for R2, e.g. 'us-east-1' for AWS
+export const S3_ACCESS_KEY_ID = env.S3_ACCESS_KEY_ID ?? '';
+export const S3_SECRET_ACCESS_KEY = env.S3_SECRET_ACCESS_KEY ?? '';
+
+// Email (Resend). Without a key, emails are logged and kept in the admin "Email outbox".
+export const RESEND_API_KEY = env.RESEND_API_KEY ?? '';
+export const RESEND_API_BASE = trimSlash(env.RESEND_API_BASE ?? 'https://api.resend.com');
+export const EMAIL_FROM = env.EMAIL_FROM ?? 'Vibe-Games <hello@vibe-games.com>';
+export const SUPPORT_EMAIL = env.SUPPORT_EMAIL ?? 'support@vibe-games.com';
+export const COMPANY_NAME = env.COMPANY_NAME ?? 'Vibe-Games';
+
+// Admins: accounts with these (verified) emails get the admin role. Comma separated.
+export const ADMIN_EMAILS = (env.ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+// Moderation: new games and updates wait for admin approval. Default: on, except in
+// open local dev. Admins can change it at runtime (Admin → Settings).
+export const REQUIRE_APPROVAL_DEFAULT = env.REQUIRE_APPROVAL ? env.REQUIRE_APPROVAL !== '0' : !ADMIN_OPEN;
+
+// Payments: Stripe Tax on Checkout (register for tax in the Stripe dashboard first).
+export const STRIPE_TAX = env.STRIPE_TAX === '1';
+// Player self-serve refunds: within this many days of purchase and under this much playtime.
+export const REFUND_WINDOW_DAYS = Number(env.REFUND_WINDOW_DAYS ?? 14);
+export const REFUND_MAX_PLAY_MINUTES = Number(env.REFUND_MAX_PLAY_MINUTES ?? 120);
+
+// Error tracking (Sentry-compatible DSN).
+export const SENTRY_DSN = env.SENTRY_DSN ?? '';
+export const RELEASE = env.RENDER_GIT_COMMIT ?? env.RELEASE ?? 'dev';

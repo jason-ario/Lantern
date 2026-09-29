@@ -1,11 +1,21 @@
-# Render Blueprint — one web service with a persistent disk for all Vibe-Games data.
-# Render → New → Blueprint → pick this repo. You'll be asked for ADMIN_PASSWORD.
+# Render Blueprint for vibe-games.com: one web service, a Postgres database and a
+# daily backup job. Render → New → Blueprint → pick this repo.
+# Secrets marked `sync: false` are asked for when the Blueprint is created.
+#
+# NOTE: the app keeps its data in memory and writes through to Postgres, so run
+# exactly ONE web instance (no horizontal autoscaling).
+databases:
+  - name: vibe-games-db
+    plan: basic-256mb        # paid plans include daily snapshots / point-in-time recovery
+    databaseName: vibegames
+    user: vibegames
+
 services:
   - type: web
     name: vibe-games
     runtime: node
-    plan: starter            # a paid instance is required for a persistent disk
-    buildCommand: npm install
+    plan: starter            # a paid instance is required for the persistent disk
+    buildCommand: npm ci --omit=dev
     startCommand: node server/index.js
     healthCheckPath: /healthz
     envVars:
@@ -13,15 +23,73 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data
-      - key: ADMIN_PASSWORD
-        sync: false          # prompted on creation; never committed to git
-      - key: PUBLIC_URL      # e.g. https://vibe-games.com (needed for Stripe/Google redirects)
+      - key: DATABASE_URL
+        fromDatabase: { name: vibe-games-db, property: connectionString }
+      - key: PUBLIC_URL
+        value: https://vibe-games.com
+      - key: ADMIN_EMAILS       # your email(s); verified accounts with these emails are admins
         sync: false
-      - key: PACKAGE_SIGNING_KEY   # npm run gen:signing-key — keep stable
+      - key: ADMIN_PASSWORD     # break-glass admin unlock; keep it long
         sync: false
-      # Optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, GOOGLE_CLIENT_ID,
-      # GOOGLE_CLIENT_SECRET, GAMES_ORIGIN — see DEPLOY.md
+      - key: PACKAGE_SIGNING_KEY   # npm run gen:signing-key; never change it once set
+        sync: false
+      - key: DEMO_CONTENT
+        value: "off"
+      # Payments (Stripe, live keys once you're ready)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PLATFORM_COUNTRY
+        value: US
+      - key: STRIPE_TAX
+        value: "1"
+      # Email (Resend)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Vibe-Games <hello@vibe-games.com>
+      - key: SUPPORT_EMAIL
+        value: support@vibe-games.com
+      - key: COMPANY_NAME
+        sync: false
+      # Object storage (Cloudflare R2 or any S3-compatible bucket)
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
+      # Error tracking
+      - key: SENTRY_DSN
+        sync: false
+      # Optional: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GAMES_ORIGIN — see DEPLOY.md
     disk:
       name: vibe-games-data
       mountPath: /var/data
       sizeGB: 1
+
+  # Daily database snapshot, uploaded to the bucket under backups/.
+  - type: cron
+    name: vibe-games-backup
+    runtime: node
+    schedule: "17 3 * * *"
+    buildCommand: npm ci --omit=dev
+    startCommand: node scripts/backup.mjs
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: vibe-games-db, property: connectionString }
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto

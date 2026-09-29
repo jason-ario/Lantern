@@ -210,6 +210,7 @@ function compute(now, includeDemo = true) {
   for (const g of db.all('games')) {
     if (g.status !== 'released' || !g.currentVersionId) continue;
     if (!includeDemo && g.source === 'seed') continue;
+    if (g.listing && g.listing !== 'live') continue; // pending, rejected or taken down
     byGame.set(g.id, scoreGame(g, gameMetrics(g, ctx), now));
   }
   const games = [...byGame.entries()].map(([id, r]) => ({ id, r, g: db.get('games', id) }));

@@ -86,10 +86,10 @@ function earnSection(share, pct) {
         <ul class="dv-list">
           <li><b>One-time purchase.</b> Pick a price tier ($2.99–$19.99) or make it free. There are no subscriptions, ads or per-play fees.</li>
           <li><b>Demos sell games.</b> Turn on the 5-minute demo and anyone can try before they buy. Demo progress carries into the full game.</li>
-          <li><b>Updates are free to ship.</b> Publish as many versions as you like. Owners get every update at no extra cost.</li>
+          <li><b>Updates are free to ship.</b> Publish as many versions as you like; each is reviewed before it replaces the live one. Owners get every update at no extra cost.</li>
           <li><b>Track sales in Publish → Your games.</b> Each game shows its sales and your share.</li>
         </ul>
-        <div class="dv-note"><span class="dv-pill">Planned</span><div><b>Payouts aren't live yet.</b> The ${pct}/${100 - Math.round(share * 100)} split is Vibe-Games' planned creator policy. Your share is ${pct} of <em>net</em> revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to your bank account are coming. Until then, sales are recorded per game so nothing gets lost.</div></div>
+        <div class="dv-note"><span class="dv-pill">Payouts</span><div><b>Paid out through Stripe.</b> Your share is ${pct} of <em>net</em> revenue: the price minus sales tax/VAT and the card processing fee. Set up payouts once under Publish → Payouts (Stripe verifies your identity and bank). Each sale is then sent to you automatically; anything you earn before setup is held and sent when you finish. Refunded sales are reversed. Details in the <a href="/legal/creators" data-link>Creator Agreement</a>.</div></div>
       </div>
       <div class="dv-calc panel" id="calc">
         <div class="dv-calc-h">Earnings estimate</div>
@@ -274,13 +274,13 @@ const save = migrate(await Platform.storage.load('progress'));`, 'js', 'Versione
   <section id="publish" class="dv-sec">
     <h2>Publishing</h2>
     <ol class="dv-steps">
-      <li><b>Get creator access.</b> Publishing is invite-only while Vibe-Games is in early access. Ask the Vibe-Games team for the creator password, then unlock it once on the <a href="/publish" data-link>Publish</a> page.</li>
+      <li><b>Become a creator.</b> Create an account, confirm your email, and accept the <a href="/legal/creators" data-link>Creator Agreement</a> on the <a href="/publish" data-link>Publish</a> page. It takes a minute and there’s no fee.</li>
       <li><b>Upload your build.</b> Drop the zip. The report shows the files, size, SDK detection and achievements it found.</li>
       <li><b>Write the store page.</b> Add a title (2–60 characters), developer name, a price, a short description of one or two sentences, a longer “About this game”, and up to 8 tags.</li>
       <li><b>Share the vibe.</b> Pick the AI tools you built it with (at least one, up to five). Optionally add the prompt that started it and roughly how many hours it took. It shows on your store page as “How it was vibed”.</li>
       <li><b>Add media.</b> One key-art image (PNG, JPG or WebP, up to 8 MB) is used for the capsule, header and banner, cropped to fit each, so keep the title and hero in the centre. Add up to 6 screenshots, 16:9 at 1280×720 or larger. If you skip media, Vibe-Games generates placeholder art.</li>
       <li><b>Choose the demo.</b> The 5-minute demo is on by default. When it ends, players see a buy screen, and their progress carries over when they buy.</li>
-      <li><b>Publish.</b> The store page, search listing and checkout go live instantly, and the game joins the <b>Fresh off the prompt</b> shelf. Your developer name is reserved for your account.</li>
+      <li><b>Submit for review.</b> Every new game (and every update) is checked by a person before players see it, usually within a couple of days. You can play it and preview the store page meanwhile. Once approved, the store page, search listing and checkout go live and the game joins the <b>Fresh off the prompt</b> shelf. If we need changes, you get an email with the reviewer’s note. Your developer name is reserved for your account.</li>
     </ol>
   </section>
 
@@ -361,10 +361,10 @@ export async function render(root) {
         <div class="dv-cta"><a class="btn btn-buy btn-lg" href="/creator/vibe-games-starter.zip" download>Download starter kit</a><a class="btn btn-ghost btn-lg" href="#vibe">Get the AI brief</a><a class="btn btn-ghost btn-lg" href="/publish" data-link>Open Publish</a></div>
       </div>
       <div class="dv-hero-stats">
-        <div><b>${pct}</b><span>revenue share to you<br><small>(planned policy)</small></span></div>
+        <div><b>${pct}</b><span>of net revenue to you<br><small>paid out via Stripe</small></span></div>
         <div><b>1 brief</b><span>VIBE.md teaches your AI the rules</span></div>
         <div><b>~10 lines</b><span>of SDK code for saves and achievements</span></div>
-        <div><b>Instant</b><span>store page goes live on publish</span></div>
+        <div><b>Reviewed</b><span>by a human, usually within a couple of days</span></div>
       </div>
     </header>
     <div class="dv-flow">${[['Prompt', 'Describe your game to your AI'], ['Integrate', 'SDK for saves and achievements'], ['Package', 'Zip it with a manifest.json'], ['Ship', 'Store page, demo and checkout'], ['Earn', `${pct} of every sale`]].map(([t, s], i) => `<div><b>${i + 1}</b><span>${t}</span><small>${s}</small></div>`).join('')}</div>

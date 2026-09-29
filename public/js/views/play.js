@@ -12,11 +12,16 @@ export const autoDownload = () => { try { return localStorage.getItem('vibe.auto
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export async function render(root, [id], query) {
-  const g = state.byId.get(id);
+  // Games not in the public catalog (awaiting review, taken down but owned) are fetched directly.
+  let g = state.byId.get(id);
+  if (!g) { try { g = await api.game(id); } catch { g = null; } }
   if (!g) { go('/store', { replace: true }); return null; }
   const owned = state.owned.has(id);
-  let mode = owned ? 'full' : query.get('demo') ? 'demo' : 'full';
-  if (!owned && mode === 'full') {
+  const reviewer = !!(state.creator?.admin || g.canUpdate);
+  let reviewVersion = null;
+  try { const rv = JSON.parse(sessionStorage.getItem('vibe.reviewVersion') ?? 'null'); if (rv?.gameId === id) reviewVersion = rv.versionId; sessionStorage.removeItem('vibe.reviewVersion'); } catch { /* ignore */ }
+  let mode = owned || (reviewer && !query.get('demo')) ? 'full' : query.get('demo') ? 'demo' : 'full';
+  if (!owned && !reviewer && mode === 'full') {
     if (g.demo) mode = 'demo';
     else { toast(`You don't own <b>${esc(g.title)}</b> yet`); go(`/app/${id}`, { replace: true }); return null; }
   }
@@ -60,7 +65,7 @@ export async function render(root, [id], query) {
 
   // 1) Installed for offline play? Bring it up to date (delta) and load the verified local copy.
   let local = null;
-  if (owned && packages.installed(id)) {
+  if (owned && !reviewVersion && packages.installed(id)) {
     if (packages.status(g) === 'update' && !state.offline) {
       const from = packages.installed(id).version;
       note(`Updating ${from} → ${g.version.version}…`);
@@ -76,7 +81,7 @@ export async function render(root, [id], query) {
   let launch;
   try {
     try {
-      launch = await api.runtime.launch(id, mode);
+      launch = await api.runtime.launch(id, mode, reviewVersion);
       try { localStorage.setItem(playerKey, JSON.stringify(launch.player)); } catch { /* ignore */ }
       flush();
     } catch (err) {

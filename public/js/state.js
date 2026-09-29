@@ -37,8 +37,10 @@ export function applyUserState(s) {
 
 export async function loadCatalog() {
   const c = await api.catalog();
-  state.games = c.games;
-  state.byId = new Map(c.games.map((g) => [g.id, g]));
+  state.games = c.games; // the public store
+  // byId also knows games that aren't in the store but this player can open
+  // (bought before a takedown, or their own game awaiting review).
+  state.byId = new Map([...(c.unlisted ?? []), ...c.games].map((g) => [g.id, g]));
   state.tags = c.tags;
   state.tools = c.tools ?? [];
   state.shelves = c.shelves ?? {};

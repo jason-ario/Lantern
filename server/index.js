@@ -10,10 +10,14 @@ import path from 'node:path';
 import * as db from './db.js';
 import { seed, syncSeedCatalog } from './seed.js';
 import crypto from 'node:crypto';
-import { handleApi, HttpError, googleStart, googleCallback, stripeWebhook } from './api.js';
+import { handleApi, HttpError, googleStart, googleCallback, stripeWebhook, settleAllCreators } from './api.js';
+import { ensureLocal, storageEnabled } from './storage.js';
+import { reportError, installProcessHandlers, monitoringEnabled } from './monitoring.js';
+import { emailEnabled } from './email.js';
 import { initSigning } from './signing.js';
 import { packageDir } from './packages.js';
-import { PORT, DB_FILE, DATA_DIR, USER_MEDIA_DIR, TRUST_PROXY, IS_PROD, ADMIN_OPEN, ADMIN_PASSWORD, ACCOUNT_MODE, GAMES_ORIGIN, PUBLIC_URL } from './config.js';
+import { PORT, DB_FILE, DATA_DIR, USER_MEDIA_DIR, TRUST_PROXY, IS_PROD, ADMIN_OPEN, ADMIN_PASSWORD, ACCOUNT_MODE, GAMES_ORIGIN, PUBLIC_URL, DATABASE_URL, ADMIN_EMAILS } from './config.js';
+import { PUBLISHED_PACKAGES_DIR, BUILTIN_PACKAGES_DIR } from './config.js';
 import { stripeEnabled } from './payments.js';
 import { googleEnabled } from './auth.js';
 
@@ -21,8 +25,16 @@ const ROOT = path.resolve('.');
 const PUBLIC = path.join(ROOT, 'public');
 const SDK = path.join(ROOT, 'sdk');
 
+installProcessHandlers();
 initSigning();
-db.open(DB_FILE, seed);
+try {
+  await db.open(DB_FILE, seed, { databaseUrl: DATABASE_URL });
+} catch (err) {
+  console.error(`Could not open the database${DATABASE_URL ? ' (check DATABASE_URL)' : ''}: ${err.message}`);
+  process.exit(1);
+}
+if (IS_PROD && !process.env.PACKAGE_SIGNING_KEY) console.warn('  ! PACKAGE_SIGNING_KEY is not set: a new key is generated on each fresh disk, which breaks players’ offline downloads. Run `npm run gen:signing-key` and set it.');
+if (IS_PROD && !ADMIN_EMAILS.length) console.warn('  ! ADMIN_EMAILS is not set: nobody can review games or use the admin console (ADMIN_PASSWORD still unlocks it per session).');
 syncSeedCatalog();
 const GAMES_HOST = GAMES_ORIGIN ? new URL(GAMES_ORIGIN).host : null;
 
@@ -150,7 +162,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/stripe/webhook' && req.method === 'POST') {
       const raw = await readRaw(req, 1e6);
       let out;
-      try { out = stripeWebhook(raw, req.headers['stripe-signature']); } catch (e) { throw new HttpError(400, e.message); }
+      try { out = await stripeWebhook(raw, req.headers['stripe-signature']); } catch (e) { if (e instanceof HttpError) throw e; if (/signature|Signature|STRIPE_WEBHOOK_SECRET/.test(e.message)) throw new HttpError(400, e.message); throw e; }
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out)); return;
     }
     // Google sign-in: top-level navigations (no platform header).
@@ -180,8 +192,13 @@ const server = http.createServer(async (req, res) => {
       const rel = p.slice('/games/'.length);
       const [gameId, version, ...rest] = rel.split('/');
       const okSeg = (x) => x && /^[A-Za-z0-9._-]+$/.test(x) && x !== '..' && x !== '.';
-      const file = okSeg(gameId) && okSeg(version) ? safeJoin(packageDir(gameId, version), rest.join('/')) : null;
+      let file = okSeg(gameId) && okSeg(version) ? safeJoin(packageDir(gameId, version), rest.join('/')) : null;
       if (!file) { res.writeHead(404); res.end(); return; }
+      // Creator uploads live in object storage too: pull them back onto a fresh disk on demand.
+      if (!fs.existsSync(file) && storageEnabled() && !fs.existsSync(path.join(BUILTIN_PACKAGES_DIR, gameId, version))) {
+        const local = safeJoin(path.join(PUBLISHED_PACKAGES_DIR, gameId, version), rest.join('/'));
+        if (local && await ensureLocal(local, `packages/${gameId}/${version}/${rest.join('/')}`)) file = local;
+      }
       sendFile(res, file, {
         'Content-Security-Policy': gameCsp(origin, `${gameId}/${version}`, GAMES_HOST ? PUBLIC_URL : origin),
         // Versioned URLs never change → cache forever. This is what makes relaunches instant on web.
@@ -205,6 +222,7 @@ const server = http.createServer(async (req, res) => {
     if (p.startsWith('/user-media/')) {
       const file = safeJoin(USER_MEDIA_DIR, p.slice('/user-media/'.length));
       if (!file) { res.writeHead(404); res.end(); return; }
+      await ensureLocal(file, `media/${p.slice('/user-media/'.length)}`);
       sendFile(res, file, { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox", 'Cache-Control': 'public, max-age=3600' });
       return;
     }
@@ -231,7 +249,7 @@ const server = http.createServer(async (req, res) => {
     res.end(html);
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
-    if (status === 500) console.error(err);
+    if (status === 500) { console.error(err); reportError(err, { path: p, method: req.method }); }
     if (!res.headersSent) res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message ?? 'Server error' }));
   }
@@ -241,8 +259,17 @@ server.listen(PORT, () => {
   console.log(`Vibe-Games running at http://localhost:${PORT}`);
   console.log(`  payments: ${stripeEnabled() ? 'Stripe' : 'demo wallet'} · Google sign-in: ${googleEnabled() ? 'on' : 'off'} · games origin: ${GAMES_ORIGIN || 'same as platform'}`);
   if (GAMES_ORIGIN && !PUBLIC_URL) console.warn('  ! GAMES_ORIGIN is set without PUBLIC_URL — game frames can be embedded by any site');
-  console.log(`  data: ${DATA_DIR} · accounts: ${ACCOUNT_MODE} · publishing: ${ADMIN_OPEN ? 'open (local dev)' : ADMIN_PASSWORD ? 'password protected' : 'disabled (set ADMIN_PASSWORD)'}${IS_PROD ? ' · production' : ''}`);
+  console.log(`  data: ${db.backend() === 'postgres' ? 'Postgres' : DATA_DIR} · uploads: ${storageEnabled() ? 'object storage + disk' : 'disk'} · accounts: ${ACCOUNT_MODE} · publishing: ${ADMIN_OPEN ? 'open (local dev)' : 'creator accounts'}${IS_PROD ? ' · production' : ''}`);
+  console.log(`  email: ${emailEnabled() ? 'Resend' : 'logged only'} · errors: ${monitoringEnabled() ? 'Sentry' : 'console'} · admins: ${ADMIN_OPEN ? 'everyone (local dev)' : [ADMIN_EMAILS.length ? `${ADMIN_EMAILS.length} email(s)` : '', ADMIN_PASSWORD ? 'password' : ''].filter(Boolean).join(' + ') || 'none — set ADMIN_EMAILS'}`);
 });
-const shutdown = () => { db.flush(); process.exit(0); };
+// Creator payouts that couldn't be sent yet (account not ready, Stripe hiccup) are retried.
+setInterval(() => { settleAllCreators().catch((err) => reportError(err, { where: 'settleAllCreators' })); }, 10 * 60e3).unref();
+let closing = false;
+const shutdown = async () => {
+  if (closing) return; closing = true;
+  server.close();
+  try { await db.close(); } catch (err) { console.error(err); }
+  process.exit(0);
+};
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

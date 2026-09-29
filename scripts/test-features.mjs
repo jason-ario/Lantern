@@ -182,7 +182,7 @@ try {
     check('Starter game saves and unlocks achievements on Vibe-Games', bs.body.some((x) => x.key === 'progress') && ba.body.find((a) => a.id === 'first_catch')?.unlockedAt, JSON.stringify(bs.body));
     await buyer.ctx.close();
     const mine = (await api('GET', '/api/creator/games')).body.find((x) => x.id === starter.body.gameId);
-    check('Creator sees the sale and a 90% share', mine.sales.count === 1 && mine.sales.creatorCents === 449, JSON.stringify(mine.sales));
+    check('Creator sees the sale and a 90% share of net (after the card fee)', mine.sales.count === 1 && mine.sales.creatorCents === Math.floor((499 - (Math.round(499 * 0.029) + 30)) * 0.9), JSON.stringify(mine.sales));
     // Discovery: new games enter the discovery window; launch health is reported by the runtime.
     check('New game is in its discovery window, launch health recorded', mine.ranking?.status === 'new' && mine.ranking.window.players > 0 && mine.ranking.health.sdkGame === true, JSON.stringify({ s: mine.ranking?.status, w: mine.ranking?.window, h: mine.ranking?.health }));
     const cat = (await api('GET', '/api/catalog')).body;

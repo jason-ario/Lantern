@@ -11,6 +11,9 @@ import * as publish from './views/publish.js';
 import * as developers from './views/developers.js';
 import * as play from './views/play.js';
 import * as checkoutComplete from './views/checkout-complete.js';
+import * as admin from './views/admin.js';
+import * as legal from './views/legal.js';
+import { renderVerify, renderReset } from './views/account-links.js';
 import { openAuth } from './views/auth.js';
 import { flush } from './offline/sync.js';
 import { setNavigator, setPrevious } from './nav.js';
@@ -29,6 +32,10 @@ const routes = [
   [/^\/developers\/?$/, developers, 'developers'],
   [/^\/play\/([^/]+)\/?$/, play, null],
   [/^\/checkout\/complete\/?$/, checkoutComplete, 'store'],
+  [/^\/admin\/?$/, admin, 'admin'],
+  [/^\/legal\/([a-z]+)\/?$/, legal, null],
+  [/^\/verify-email\/?$/, { render: renderVerify }, null],
+  [/^\/reset-password\/?$/, { render: renderReset }, null],
 ];
 
 const view = document.getElementById('view');
@@ -101,10 +108,20 @@ function renderChrome() {
     document.querySelector('.topnav').after(banner);
   } else if (!state.offline && banner) banner.remove();
   document.body.classList.toggle('is-offline', !!state.offline);
+  document.getElementById('navAdmin')?.classList.toggle('hidden', !state.creator?.admin);
   const wc = document.getElementById('wishCount');
   wc.textContent = state.wishlist.size ? state.wishlist.size : '';
 }
 onChange(renderChrome);
+
+// Browser errors → the server's error tracking (deduplicated, capped per page load).
+let reported = 0;
+const reportClientError = (message, stack) => {
+  if (reported++ >= 5 || !message) return;
+  fetch('/api/client-errors', { method: 'POST', headers: { 'X-Vibe-Client': 'platform', 'Content-Type': 'application/json' }, body: JSON.stringify({ message: String(message), stack: String(stack ?? ''), url: location.pathname }) }).catch(() => {});
+};
+window.addEventListener('error', (e) => { if (e.filename && !e.filename.startsWith(location.origin)) return; reportClientError(e.message, e.error?.stack); });
+window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof TypeError && /offline|fetch/i.test(e.reason.message)) return; reportClientError(e.reason?.message ?? e.reason, e.reason?.stack); });
 
 (async () => {
   await migrateLegacyStorage();

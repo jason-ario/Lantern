@@ -19,6 +19,8 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
       <label class="f"><span>Password</span><input name="password" type="password" minlength="8" required></label>
       <p class="auth-note muted small" id="authNote"></p>
       <button class="btn btn-buy btn-lg" id="authSubmit"></button>
+      <p class="auth-legal muted small" data-only="signup">By creating an account you agree to the <a href="/legal/terms" data-link data-close-modal>Terms of Service</a> and <a href="/legal/privacy" data-link data-close-modal>Privacy Policy</a>.</p>
+      <p class="auth-legal small" data-only="login"><button type="button" class="link-btn" id="forgotBtn">Forgot your password?</button></p>
     </form>
   </div>`, {
     onMount(el, close) {
@@ -36,6 +38,22 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
           : (m === 'signup' ? 'Your library, cloud saves and purchases follow you to any browser — and to the desktop app later.' : '');
       };
       el.querySelector('.auth-tabs').onclick = (e) => { if (e.target.dataset.tab) setMode(e.target.dataset.tab); };
+      el.querySelectorAll('[data-close-modal]').forEach((a) => a.addEventListener('click', () => close()));
+      el.querySelector('#forgotBtn').onclick = () => {
+        const email = f.elements.email.value.trim();
+        f.innerHTML = `<p class="muted">Enter your account email and we’ll send you a link to choose a new password.</p>
+          <label class="f"><span>Email</span><input name="email" type="email" autocomplete="email" required value="${esc(email)}"></label>
+          <button class="btn btn-buy btn-lg">Send reset link</button>`;
+        el.querySelector('.auth-tabs').style.display = 'none';
+        el.querySelector('#authTitle').textContent = 'Reset your password';
+        f.elements.email.focus();
+        f.onsubmit = async (e) => {
+          e.preventDefault();
+          const btn = f.querySelector('button'); btn.disabled = true;
+          try { await api.auth.forgot(f.elements.email.value.trim()); f.innerHTML = `<p>If an account exists for <b>${esc(f.elements.email.value.trim())}</b>, a reset link is on its way. It works for 1 hour.</p>`; }
+          catch (err) { btn.disabled = false; toast(esc(err.message), { kind: 'error' }); }
+        };
+      };
       setMode(mode);
       // Focus the first field, but never steal focus from a field the user (or autofill) is already typing in.
       setTimeout(() => { if (!f.contains(document.activeElement)) (current === 'signup' ? f.elements.displayName : f.elements.email).focus(); }, 50);
@@ -50,7 +68,7 @@ export function openAuth({ mode = 'signup', reason = '', onDone } = {}) {
           navigator.serviceWorker?.controller?.postMessage({ type: 'clear-api-cache' });
           await loadCatalog();
           close();
-          toast(current === 'signup' ? `Welcome to Vibe-Games, <b>${esc(s.user.displayName)}</b>` : `Signed in as <b>${esc(s.user.displayName)}</b>`, { kind: 'ok' });
+          toast(current === 'signup' ? `Welcome to Vibe-Games, <b>${esc(s.user.displayName)}</b>. Check <b>${esc(s.user.email)}</b> to confirm your email.` : `Signed in as <b>${esc(s.user.displayName)}</b>`, { kind: 'ok', timeout: current === 'signup' ? 6000 : undefined });
           onDone?.(s);
         } catch (err) {
           btn.disabled = false;

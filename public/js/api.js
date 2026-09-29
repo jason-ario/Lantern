@@ -49,6 +49,8 @@ export const api = {
   checkout: (id) => request('POST', `/api/games/${enc(id)}/checkout`, {}),
   confirmCheckout: (orderId) => request('POST', '/api/checkout/confirm', { orderId }),
   orders: () => request('GET', '/api/orders'),
+  refund: (orderId, reason) => request('POST', `/api/orders/${enc(orderId)}/refund`, { reason }),
+  report: (type, targetId, reason, details) => request('POST', '/api/reports', { type, targetId, reason, details }),
   build: (id) => request('GET', `/api/games/${enc(id)}/build`),
   packageKey: () => request('GET', '/api/keys/packages'),
   auth: {
@@ -56,10 +58,19 @@ export const api = {
     login: (email, password) => request('POST', '/api/auth/login', { email, password }),
     logout: () => request('POST', '/api/auth/logout'),
     changePassword: (current, password) => request('POST', '/api/auth/password', { current, password }),
+    resendVerification: () => request('POST', '/api/auth/verify/resend'),
+    verify: (token) => request('POST', '/api/auth/verify', { token }),
+    forgot: (email) => request('POST', '/api/auth/forgot', { email }),
+    reset: (token, password) => request('POST', '/api/auth/reset', { token, password }),
   },
   creator: {
     games: () => request('GET', '/api/creator/games'),
     publishVersion: (id, payload) => request('POST', `/api/games/${enc(id)}/versions`, payload),
+    edit: (id, patch) => request('PATCH', `/api/creator/games/${enc(id)}`, patch),
+    join: () => request('POST', '/api/creator/join', { agree: true }),
+    payouts: () => request('GET', '/api/creator/payouts'),
+    onboard: (country) => request('POST', '/api/creator/payouts/onboard', { country }),
+    payoutDashboard: () => request('POST', '/api/creator/payouts/dashboard'),
   },
   wishlist: {
     add: (id) => request('PUT', `/api/wishlist/${enc(id)}`),
@@ -78,7 +89,7 @@ export const api = {
   // Runtime-facing services. The runtime host receives these as an injected
   // dependency; games never see them.
   runtime: {
-    launch: (id, mode) => request('POST', `/api/games/${enc(id)}/launch`, { mode }),
+    launch: (id, mode, versionId) => request('POST', `/api/games/${enc(id)}/launch`, { mode, versionId: versionId ?? undefined }),
     heartbeat: (sid, activeSeconds, health) => request('POST', `/api/sessions/${enc(sid)}/heartbeat`, { activeSeconds, health }),
     end: (sid, activeSeconds, opts) => request('POST', `/api/sessions/${enc(sid)}/end`, { activeSeconds, health: opts?.health }, opts),
     offlineSession: (s) => request('POST', '/api/sessions/offline', s),
@@ -108,5 +119,16 @@ export const api = {
     resetSite: () => request('POST', '/api/admin/reset'),
     settings: () => request('GET', '/api/admin/settings'),
     saveSettings: (patch) => request('PUT', '/api/admin/settings', patch),
+    queue: () => request('GET', '/api/admin/queue'),
+    gameAction: (id, action, note) => request('POST', `/api/admin/games/${enc(id)}/${action}`, { note }),
+    versionAction: (id, action, note) => request('POST', `/api/admin/versions/${enc(id)}/${action}`, { note }),
+    games: (q) => request('GET', `/api/admin/games${q ? `?q=${enc(q)}` : ''}`),
+    reports: (status) => request('GET', `/api/admin/reports?status=${enc(status ?? 'open')}`),
+    resolveReport: (id, action) => request('POST', `/api/admin/reports/${enc(id)}/resolve`, { action }),
+    orders: (q) => request('GET', `/api/admin/orders${q ? `?q=${enc(q)}` : ''}`),
+    refund: (id, reason) => request('POST', `/api/admin/orders/${enc(id)}/refund`, { reason }),
+    creators: () => request('GET', '/api/admin/creators'),
+    creatorAction: (id, action) => request('POST', `/api/admin/creators/${enc(id)}/${action}`),
+    outbox: () => request('GET', '/api/admin/outbox'),
   },
 };

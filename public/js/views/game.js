@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { state, toggleWishlist, onChange } from '../state.js';
 import { openAuth } from './auth.js';
-import { avatar, esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
+import { avatar, esc, logo, price, ratingLabel, tagChips, date, bytes, hours, ago, icons, toast, modal, rankBadges, compact, vibeChips, vibeTime, $, $$ } from '../ui.js';
 import { storeBar, bindStoreBar } from './store.js';
 import { openCheckout } from './checkout.js';
 
@@ -20,6 +20,9 @@ export async function render(root, [id], query) {
     const owned = state.owned.has(g.id);
     const wished = state.wishlist.has(g.id);
     let html = '';
+    if (g.listing && g.listing !== 'live' && !owned) {
+      return `<div class="buy-box"><div class="bb-title">${g.listing === 'removed' ? 'No longer available' : 'Not on sale yet'}</div><div class="bb-row"><span class="muted">${g.listing === 'removed' ? 'This game was taken off the store. Players who bought it can still play it.' : 'This game is waiting for review, so it isn’t on sale yet.'}</span>${g.canUpdate || state.creator.admin ? `<a class="btn btn-play btn-lg" href="/play/${esc(g.id)}" data-link>${icons.play} Play it</a>` : ''}</div></div>`;
+    }
     if (g.status === 'coming_soon') {
       html += `<div class="buy-box"><div class="bb-title">${esc(g.title)} releases ${date(g.releaseDate)}</div>
         <div class="bb-row"><span class="muted">Still cooking. Wishlist it and it'll be waiting for you on launch day.</span>
@@ -46,6 +49,7 @@ export async function render(root, [id], query) {
   root.innerHTML = `${storeBar()}
   <div class="game-hero" style="background-image:url('${esc(g.media.hero)}')"></div>
   <div class="page game-page">
+    ${g.listing && g.listing !== 'live' ? `<div class="sample-banner"><b>${{ pending: 'In review', rejected: 'Changes requested', removed: 'Taken down' }[g.listing] ?? g.listing}</b> ${g.listing === 'pending' ? 'Only you and the review team can see this page until it’s approved.' : g.listing === 'rejected' ? 'See the reviewer’s note on your Publish page, fix it and publish an update.' : 'This game is no longer on the store.'}${state.creator.admin ? ' <a href="/admin" data-link>Open the admin queue</a>' : ''}</div>` : ''}
     ${g.sample ? `<div class="sample-banner"><b>Sample listing</b> This is a fictional demo game used to show off the store${state.site.demoContent === 'admins' ? ' (visible to admins only)' : ''}. Its ratings and reviews are sample data.</div>` : ''}
     <div class="crumbs"><a href="/store" data-link>All Games</a> › <a href="/search?tag=${encodeURIComponent(g.tags[0])}" data-link>${esc(g.tags[0])}</a> › <span>${esc(g.title)}</span></div>
     <div class="gp-head">
@@ -136,6 +140,7 @@ export async function render(root, [id], query) {
           <div class="dev-name">${esc(g.developer?.name)}</div>
           <div class="muted small">${esc(g.developer?.location ?? '')}</div>
         </div>
+        <div class="side-box report-box"><button class="link-btn" id="reportGame">Report this game</button></div>
         ${g.versions.length ? `<div class="side-box"><div class="side-h">Version history</div>${g.versions.slice().reverse().map((v) => `<div class="ver-line"><b>${esc(v.version)}</b><span class="muted">${date(v.releasedAt)}</span></div>`).join('')}</div>` : ''}
       </aside>
     </div>
@@ -155,7 +160,7 @@ export async function render(root, [id], query) {
   const wishHead = () => {
     if (state.owned.has(g.id)) { $('#wishHead', root).innerHTML = '<span class="owned-pill">✓ In Library</span>'; return; }
     const on = state.wishlist.has(g.id);
-    $('#wishHead', root).innerHTML = `<button class="btn ${on ? 'btn-wish-on' : 'btn-ghost'}" data-wish>${on ? `${icons.heart} On Wishlist` : `${icons.heartOutline} Add to Wishlist`}</button>`;
+    $('#wishHead', root).innerHTML = g.listing && g.listing !== 'live' ? '' : `<button class="btn ${on ? 'btn-wish-on' : 'btn-ghost'}" data-wish>${on ? `${icons.heart} On Wishlist` : `${icons.heartOutline} Add to Wishlist`}</button>`;
   };
   wishHead();
 
@@ -165,7 +170,7 @@ export async function render(root, [id], query) {
   const reviewCard = (x) => `<article class="review ${x.up ? 'up' : 'down'}${x.mine ? ' mine' : ''}">
     <div class="rv-who">${avatar({ displayName: x.author.name, avatarHue: x.author.avatarHue }, 34)}<div><b>${esc(x.author.name)}</b><small>${hours(x.playtimeSeconds)} on record</small></div></div>
     <div class="rv-main">
-      <div class="rv-head"><span class="rv-thumb">${x.up ? '👍 Recommended' : '👎 Not recommended'}</span><span class="muted small">${date(x.createdAt)}${x.updatedAt ? ' · edited' : ''}</span>${x.sample ? '<span class="sample-pill">Sample</span>' : ''}${state.creator.admin && !x.mine && !x.sample ? `<button class="link-btn rv-mod" data-mod="${esc(x.id)}">Remove</button>` : ''}</div>
+      <div class="rv-head"><span class="rv-thumb">${x.up ? '👍 Recommended' : '👎 Not recommended'}</span><span class="muted small">${date(x.createdAt)}${x.updatedAt ? ' · edited' : ''}</span>${x.sample ? '<span class="sample-pill">Sample</span>' : ''}${state.creator.admin && !x.mine && !x.sample ? `<button class="link-btn rv-mod" data-mod="${esc(x.id)}">Remove</button>` : !x.mine && !x.sample ? `<button class="link-btn rv-mod" data-report-review="${esc(x.id)}">Report</button>` : ''}</div>
       ${x.text ? `<p>${esc(x.text).replace(/\n/g, '<br>')}</p>` : '<p class="muted small">No written review.</p>'}
     </div>
   </article>`;
@@ -208,9 +213,11 @@ export async function render(root, [id], query) {
     $('#rvDelete', revBody)?.addEventListener('click', async () => { try { await api.reviews.remove(g.id); editing = false; toast('Review deleted'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } });
     $('#rvSignup', revBody)?.addEventListener('click', () => openAuth({ mode: 'signup', onDone: () => loadReviews() }));
     revBody.querySelectorAll('[data-rf]').forEach((b) => { b.onclick = () => { revFilter = b.dataset.rf || null; loadReviews(); }; });
+    revBody.querySelectorAll('[data-report-review]').forEach((b) => { b.onclick = () => openReport('review', b.dataset.reportReview, 'this review'); });
     revBody.querySelectorAll('[data-mod]').forEach((b) => { b.onclick = async () => { try { await api.reviews.moderate(b.dataset.mod); toast('Review removed'); loadReviews(); } catch (err) { toast(esc(err.message), { kind: 'error' }); } }; });
   };
   loadReviews();
+  $('#reportGame', root)?.addEventListener('click', () => openReport('game', g.id, g.title));
 
   const rerender = () => { $('#buyArea', root).innerHTML = buyBlock(); wishHead(); loadReviews(); };
   const off = onChange(rerender);
@@ -224,4 +231,23 @@ export async function render(root, [id], query) {
     }
   };
   return off;
+}
+
+// Report a game or review to the moderators.
+const REPORT_REASONS = [['broken', 'It doesn’t work'], ['misleading', 'Misleading store page'], ['offensive', 'Offensive or hateful'], ['stolen', 'Uses stolen content'], ['malware', 'Malware or suspicious behaviour'], ['spam', 'Spam'], ['other', 'Something else']];
+function openReport(type, targetId, label) {
+  modal(`<form class="confirm"><h3>Report ${esc(label)}</h3>
+    <label class="f"><span>What’s wrong?</span><select name="reason">${REPORT_REASONS.filter(([k]) => type === 'game' || !['broken', 'stolen', 'malware'].includes(k)).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+    <label class="f" style="margin-top:10px"><span>Details <small>optional</small></span><textarea name="details" rows="3" maxlength="1000"></textarea></label>
+    <p class="muted small">Our moderators review every report. Thanks for keeping Vibe-Games good.</p>
+    <div class="co-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy">Send report</button></div></form>`, {
+    onMount(el, close) {
+      el.querySelector('[data-close]').onclick = close;
+      el.querySelector('form').onsubmit = async (e) => {
+        e.preventDefault();
+        try { await api.report(type, targetId, e.target.reason.value, e.target.details.value); close(); toast('Thanks, the report was sent to our moderators', { kind: 'ok' }); }
+        catch (err) { toast(esc(err.message), { kind: 'error' }); }
+      };
+    },
+  });
 }

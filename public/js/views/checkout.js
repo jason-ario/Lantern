@@ -63,7 +63,7 @@ function mockCheckout(g, { inGame, onPurchased }) {
         <div class="co-pay-label">Payment method</div>
         <label class="co-method"><input type="radio" checked> <span><b>Vibe Wallet</b><small>Prototype — no real payment is taken (Stripe isn't configured on this server)</small></span></label>
       </div>
-      <p class="co-fine">Your purchase is a permanent licence tied to your Vibe-Games account. Saves, achievements and playtime follow you across web and desktop.${state.user?.guest ? ' <b>Tip:</b> create an account so you never lose it.' : ''}</p>
+      <p class="co-fine">Your purchase is a licence tied to your Vibe-Games account. Saves, achievements and playtime follow you across web and desktop. By buying you agree to the <a href="/legal/terms" data-link>Terms</a>, ask for the game to be available straight away, and can still use our <a href="/legal/refunds" data-link>14-day refund policy</a>.${state.user?.guest ? ' <b>Tip:</b> create an account so you never lose it.' : ''}</p>
       <div class="co-actions"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-buy btn-lg" data-confirm>Confirm purchase · ${price(g.priceCents)}</button></div>
     </div>`, {
     onMount(el, close) {

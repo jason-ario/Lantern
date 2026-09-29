@@ -199,6 +199,7 @@ await shot('12-published');
 await page.click('.pub-live a.btn-ghost');
 await page.waitForSelector('.gp-head h1');
 check('Published game has a store page', (await page.textContent('.gp-head h1')) === 'Skylark');
+check('Published game keeps its built-with tools', ((await api('GET', '/api/games/skylark')).builtWith ?? []).includes('claude-code'));
 await page.click('.owned-box .btn-play');
 frame = await gameFrame();
 await waitSplashGone();

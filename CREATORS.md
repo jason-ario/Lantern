@@ -14,7 +14,7 @@ You vibed it. Now sell it. If you built it with AI and it runs in a browser, it 
 - **Updates are free to ship.** Owners get every update at no extra cost.
 - **Track sales** under **Publish → Your games**. Each game shows its sales and your share.
 
-> **Planned policy.** The 90/10 split is Vibe-Games' planned creator policy. Your share is 90% of *net* revenue: the price minus payment processing fees, sales tax/VAT and refunds. Payouts to creators are not live yet. Sales are recorded per game from day one. Operators can change the split with the `CREATOR_SHARE` environment variable.
+> **Payouts.** Your share is 90% of *net* revenue: the price minus sales tax/VAT and the card processing fee. Payouts go through Stripe Connect: set them up once under **Publish → Payouts**, then each sale is transferred to you automatically. Earnings made before setup are held and sent when you finish; refunded sales are reversed. Operators can change the split with the `CREATOR_SHARE` environment variable. The full terms are in the Creator Agreement (`/legal/creators`).
 
 | Price | $2.99 | $4.99 | $7.99 | $9.99 | $14.99 | $19.99 |
 |---|---|---|---|---|---|---|
@@ -157,7 +157,7 @@ If you use modules, bundle them into one classic script, for example `npx esbuil
 
 ## 8. Publishing
 
-Publishing is invite-only during early access. Ask the Vibe-Games team for the creator password.
+Anyone can become a creator: create an account, confirm your email, and accept the Creator Agreement on the Publish page.
 
 On the Publish page, provide:
 - The zip
@@ -169,7 +169,7 @@ On the Publish page, provide:
 - Whether to offer the demo
 - **The vibe:** the AI tools you built it with (at least one, up to five), and optionally the prompt that started it (up to 400 characters) and roughly how many hours it took. It shows on your store page under "How it was vibed", and players can browse and search by tool.
 
-The store page goes live instantly.
+Every new game and every update is reviewed by a person before players see it, usually within a couple of days. You can play your game and preview its store page while it waits. You're emailed when it's approved, or with the reviewer's note if it needs changes. After publishing you can edit the store page (price, text, tags, vibe) from **Publish → Your games → Edit page**; those edits go live straight away.
 
 ## 9. Updates
 

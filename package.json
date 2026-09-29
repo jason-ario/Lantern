@@ -18,6 +18,12 @@
     "test:features": "node scripts/test-features.mjs",
     "test:content": "node scripts/test-content.mjs",
     "gen:signing-key": "node scripts/gen-signing-key.mjs",
-    "build:starter": "node scripts/build-starter.mjs"
+    "build:starter": "node scripts/build-starter.mjs",
+    "test:launch": "node scripts/test-launch.mjs",
+    "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/backup.mjs --restore"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
   }
 }

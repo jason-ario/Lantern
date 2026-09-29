@@ -20,6 +20,7 @@ export async function render(root, _, query) {
           <div class="muted">${p.user.guest ? 'Guest account on this browser' : `@${esc(p.user.username)}${p.user.email ? ` · ${esc(p.user.email)}` : ''}`} · Member since ${date(p.user.memberSince)}</div>
         </div>
       </div>
+      ${!p.user.guest && p.user.email && !p.user.emailVerified ? `<div class="guest-cta verify-cta"><div><b>Confirm your email.</b><span class="muted">We sent a link to ${esc(p.user.email)}. Confirming lets you publish games and recover your account.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="resendVerify">Resend link</button></div></div>` : ''}
       ${p.user.guest ? `<div class="guest-cta"><div><b>Keep your library forever.</b><span class="muted">You're playing as a guest — your games and saves live in this browser's cookie. Create a free account and they follow you everywhere.</span></div><div class="guest-cta-actions"><button class="btn btn-buy" id="ctaSignup">Create account</button><button class="btn btn-ghost" id="ctaLogin">Sign in</button></div></div>` : ''}
       <div class="pf-stats">
         <div><b>${s.owned}</b><span>Games owned</span></div>
@@ -53,12 +54,12 @@ export async function render(root, _, query) {
             <div class="acct-actions">
               ${p.user.guest ? '' : `${p.user.hasPassword ? '<button class="btn btn-ghost btn-sm" id="changePw">Change password</button>' : ''}<button class="btn btn-ghost btn-sm" id="signOut">Sign out</button>`}
               <button class="btn btn-ghost btn-sm" id="resetMine">Reset my progress</button>
-              ${state.creator.admin && state.creator.passwordRequired ? '<button class="btn btn-ghost btn-sm" id="logoutCreator">Leave creator mode</button>' : ''}
+
             </div>
           </section>
           <section class="panel">
             <h3>Purchase history</h3>
-            ${(p.orders ?? []).length ? `<table class="saves orders"><tbody>${p.orders.map((o) => `<tr><td><a href="/app/${esc(o.gameId)}" data-link>${esc(o.title)}</a><div class="muted small mono">${esc(o.id)}</div></td><td>${date(o.paidAt ?? o.createdAt)}</td><td>${o.amountCents ? price(o.amountCents) : 'Free'}</td><td class="muted small">${{ stripe: 'Card (Stripe)', mock: 'Demo wallet', free: 'Free' }[o.provider] ?? esc(o.provider)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small">No purchases yet.</p>'}
+            ${(p.orders ?? []).length ? `<table class="saves orders"><tbody>${p.orders.map((o) => `<tr><td><a href="/app/${esc(o.gameId)}" data-link>${esc(o.title)}</a><div class="muted small mono">${esc(o.id)}</div></td><td>${date(o.paidAt ?? o.createdAt)}</td><td>${o.amountCents ? price(o.amountCents) : 'Free'}</td><td class="muted small">${{ stripe: 'Card (Stripe)', mock: 'Demo wallet', free: 'Free' }[o.provider] ?? esc(o.provider)}</td><td class="ord-refund">${o.status === 'refunded' ? '<span class="lst lst-removed">Refunded</span>' : o.refund?.ok ? `<button class="link-btn" data-refund="${esc(o.id)}" data-title="${esc(o.title)}">Refund</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small">No purchases yet.</p>'}
           </section>
           <section class="panel">
             <h3>Offline &amp; downloads</h3>
@@ -67,12 +68,9 @@ export async function render(root, _, query) {
             <button class="btn btn-ghost btn-sm" id="clearDl">Remove all downloads</button>
           </section>
           ${state.creator.admin ? `<section class="panel">
-            <h3>Sample content</h3>
-            <p class="muted small">The fictional demo games and their reviews. Hide them for launch, preview them yourself, or show them to everyone.</p>
-            <div class="seg" id="demoSeg" role="radiogroup" aria-label="Sample content">
-              ${[['off', 'Hidden'], ['admins', 'Admins only'], ['everyone', 'Everyone']].map(([v, l]) => `<button type="button" role="radio" data-demo="${v}" aria-checked="${state.site.demoContent === v}" class="${state.site.demoContent === v ? 'on' : ''}">${l}</button>`).join('')}
-            </div>
-            <p class="muted small" id="demoNote">${state.site.demoContent === 'off' ? 'Players only see real games and real reviews.' : state.site.demoContent === 'admins' ? 'Only admins see sample games (marked “Sample”). Players see real content only.' : 'Everyone sees sample games, marked “Sample” on their store pages.'}</p>
+            <h3>Admin</h3>
+            <p class="muted small">Review queue, reports, refunds, creators and site settings (including sample content).</p>
+            <a class="btn btn-buy btn-sm" href="/admin" data-link>Open admin console</a>
           </section>
           <section class="panel">
             <h3>Site admin</h3>
@@ -109,18 +107,16 @@ export async function render(root, _, query) {
   root.querySelector('#resetMine').onclick = () => confirmBox('Reset your progress?', 'Your library, saves, playtime, achievements and wishlist on this account are deleted.', 'Reset my progress', async () => {
     applyUserState(await api.account.resetProgress()); toast('Your progress was reset'); go('/store');
   });
-  root.querySelector('#demoSeg')?.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-demo]'); if (!b || b.classList.contains('on')) return;
-    try {
-      const r = await api.admin.saveSettings({ demoContent: b.dataset.demo });
-      applyUserState(r.state); await loadCatalog();
-      toast(`Sample content: <b>${esc(b.textContent)}</b>`, { kind: 'ok' }); go('/profile');
-    } catch (err) { toast(esc(err.message), { kind: 'error' }); }
+  root.querySelector('#resendVerify')?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try { await api.auth.resendVerification(); toast(`New link sent to <b>${esc(p.user.email)}</b>`, { kind: 'ok' }); } catch (err) { e.target.disabled = false; toast(esc(err.message), { kind: 'error' }); }
   });
+  root.querySelectorAll('[data-refund]').forEach((b) => { b.onclick = () => confirmBox(`Refund ${esc(b.dataset.title)}?`, 'The game is removed from your library and the money goes back to your original payment method (usually 5–10 business days). Your saves are kept in case you buy it again.', 'Refund', async () => {
+    const r = await api.refund(b.dataset.refund); applyUserState(r.state); toast('Refund issued. We’ve emailed you a confirmation.', { kind: 'ok' }); go('/profile');
+  }); });
   root.querySelector('#resetSite')?.addEventListener('click', () => confirmBox('Reset the entire site?', 'Everyone’s accounts, purchases and saves are deleted and every published game is removed.', 'Reset site', async () => {
     await api.admin.resetSite(); await boot(); toast('Site reset'); go('/store');
   }));
-  root.querySelector('#logoutCreator')?.addEventListener('click', async () => { applyUserState(await api.admin.logout()); toast('Signed out of creator access'); go('/profile'); });
   root.querySelector('#rename').onclick = () => modal(`<form class="confirm" id="nameForm"><h3>Your display name</h3>
     <p class="muted">Shown on your profile and to games you play.</p>
     <input name="name" maxlength="24" value="${esc(state.user.displayName)}" style="width:100%;margin-bottom:16px" autocomplete="off">
