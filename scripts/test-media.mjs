@@ -157,6 +157,35 @@ try {
   check('Reduced-motion visitors get the banner, not autoplaying video', await rmp.evaluate(() => !document.querySelector('.feat-video')));
   await rm.close();
 
+  // ---------- a trailer whose file has gone missing (e.g. a server that lost its disk) ----------
+  const trailerUrl = (await api('GET', `/api/games/${gid}`)).body.media.trailer;
+  const trailerFile = path.join(tmp, 'data', 'media', gid, path.basename(trailerUrl));
+  fs.renameSync(trailerFile, `${trailerFile}.away`);
+  const miss = (await api('GET', '/api/admin/settings')).body.missingFiles ?? [];
+  check('Admin settings report the missing trailer', miss.some((m) => m.id === gid && m.missing.includes('trailer')), JSON.stringify(miss));
+  // A fresh browser profile, so the earlier download isn't replayed from the HTTP cache.
+  const fresh = await b.newContext({ viewport: { width: 1280, height: 900 } }); const fp = await fresh.newPage();
+  fp.on('pageerror', (e) => errors.push(e.message));
+  await fp.goto(`${BASE}/store`); await fp.waitForSelector('#featMain');
+  await fp.mouse.move(5, 5);
+  const broken = await fp.evaluate(async (gid) => {
+    for (let i = 0; i < 50 && document.querySelector('.feat-video'); i++) await new Promise((r) => setTimeout(r, 100));
+    const main = document.querySelector('#featMain');
+    return { video: !!document.querySelector('.feat-video'), href: main.getAttribute('href'), bg: main.style.backgroundImage.length > 0, btnHidden: document.querySelector('#featSound').hidden, gid };
+  }, gid);
+  check('Store home: a missing trailer falls back to the banner', !broken.video && broken.href === `/app/${gid}` && broken.bg && broken.btnHidden, JSON.stringify(broken));
+  const rotated = await fp.evaluate(async (gid) => {
+    for (let i = 0; i < 90; i++) { if (document.querySelector('#featMain').getAttribute('href') !== `/app/${gid}`) return true; await new Promise((r) => setTimeout(r, 100)); }
+    return false;
+  }, gid);
+  check('…and the carousel keeps rotating', rotated);
+  await fp.goto(`${BASE}/app/${gid}`);
+  check('Game page: a missing trailer shows the banner with a note, not a black box', await fp.waitForSelector('#stage .gp-video-error', { timeout: 5000 }).then(() => true).catch(() => false));
+  check('Admin console shows a missing-files warning', await page.goto(`${BASE}/admin`).then(() => page.waitForSelector('.adm-alert', { timeout: 5000 })).then(() => true).catch(() => false));
+  await fresh.close();
+  fs.renameSync(`${trailerFile}.away`, trailerFile);
+  check('With the file back, nothing is reported missing', !((await api('GET', '/api/admin/settings')).body.missingFiles ?? []).length);
+
   // ---------- screenshots: reorder / keep / add via the API ----------
   const before = (await api('GET', `/api/games/${gid}`)).body.media.screenshots;
   const r1 = await api('PATCH', `/api/creator/games/${gid}`, { media: { screenshots: [before[2], before[0], before[1]] } });

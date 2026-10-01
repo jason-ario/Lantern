@@ -156,16 +156,30 @@ export async function render(root, [id], query) {
 
   // media viewer
   const stage = $('#stage', root);
+  // Stop a trailer properly: clearing src also cancels its download, so a big trailer
+  // doesn't keep streaming in the background after you switch slides or leave the page.
+  const stopStageVideo = () => { const v = stage.querySelector('video'); if (v) { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); } };
   const show = (i) => {
     const m = media[i];
+    stopStageVideo();
     stage.classList.toggle('is-video', !!m.video);
     if (m.video) {
       // Autoplays muted (browsers only allow that); the controls unmute it.
       stage.style.backgroundImage = '';
       stage.innerHTML = '';
       const v = document.createElement('video');
-      Object.assign(v, { src: m.video, poster: g.media.hero, controls: true, muted: true, autoplay: true, playsInline: true, preload: 'auto' });
+      Object.assign(v, { poster: g.media.hero, controls: true, muted: true, autoplay: true, playsInline: true, preload: 'auto' });
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('autoplay', '');
       v.setAttribute('aria-label', `${g.title} trailer`);
+      // The file is missing or the browser can't decode it: say so on the banner instead of a black box.
+      v.addEventListener('error', () => {
+        if (!v.isConnected) return;
+        stage.classList.remove('is-video');
+        v.remove();
+        stage.style.backgroundImage = `url('${g.media.hero}')`;
+        stage.innerHTML = `${logo(g, 'lg')}<div class="gp-video-error">Trailer unavailable right now</div>`;
+      });
+      v.src = m.video;
       stage.append(v);
       v.play().catch(() => {});
     } else {
@@ -252,7 +266,7 @@ export async function render(root, [id], query) {
     }
   };
   // A detached <video> keeps playing (and can be unmuted), so stop the trailer on leave.
-  return () => { off(); stage.querySelector('video')?.pause(); };
+  return () => { off(); stopStageVideo(); };
 }
 
 // Report a game or review to the moderators.

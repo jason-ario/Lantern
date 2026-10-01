@@ -223,9 +223,9 @@ export async function render(root) {
     soundBtn.setAttribute('aria-label', muted ? 'Turn trailer sound on' : 'Mute trailer');
     soundBtn.title = muted ? 'Sound on' : 'Mute';
   };
-  const stopVideo = () => { if (video) { video.pause(); video.remove(); video = null; } $('#featMain', root)?.classList.remove('has-video'); paintSound(); };
+  const stopVideo = () => { if (video) { video.pause(); video.removeAttribute('src'); video.load(); video.remove(); video = null; } $('#featMain', root)?.classList.remove('has-video'); paintSound(); };
   const showFeat = (i) => {
-    fi = (i + feat.length) % feat.length; console.log("showFeat", i, fi, new Error().stack.split("\n").slice(2,3).join(" / "));
+    fi = (i + feat.length) % feat.length;
     const g = feat[fi];
     const r = ratingLabel(g.rating);
     const main = $('#featMain', root);
@@ -235,14 +235,26 @@ export async function render(root) {
     main.innerHTML = `${logo(g, 'xl')}<div class="feat-caption">${esc(g.shortDescription)}</div>`;
     if (g.media.trailer && !reduceMotion) {
       const v = document.createElement('video');
-      Object.assign(v, { src: g.media.trailer, poster: g.media.hero, muted, autoplay: true, playsInline: true, preload: 'auto', className: 'feat-video' });
+      Object.assign(v, { poster: g.media.hero, muted, autoplay: true, playsInline: true, preload: 'auto', className: 'feat-video' });
+      // Attributes as well as properties: iOS Safari and some Chromium builds only allow
+      // muted autoplay when the attributes are present.
+      if (muted) v.setAttribute('muted', '');
+      v.setAttribute('playsinline', ''); v.setAttribute('autoplay', '');
       v.setAttribute('aria-hidden', 'true');
-      const fallBack = () => { if (video === v) { stopVideo(); auto(); } }; // can't play: keep the banner, resume the carousel
-      v.addEventListener('ended', () => { if (video === v) { showFeat(fi + 1); auto(); } });
+      // If the trailer can't play (missing file, unsupported codec, autoplay blocked, a stalled
+      // download), keep the banner and resume the carousel instead of sitting on a black frame.
+      let watchdog = null;
+      const arm = (ms) => { clearTimeout(watchdog); watchdog = setTimeout(fallBack, ms); };
+      function fallBack() { clearTimeout(watchdog); if (video === v) { stopVideo(); auto(); } }
+      v.addEventListener('playing', () => clearTimeout(watchdog));
+      v.addEventListener('waiting', () => { if (!document.hidden) arm(12000); }); // stuck buffering mid-trailer
+      v.addEventListener('ended', () => { clearTimeout(watchdog); if (video === v) { showFeat(fi + 1); auto(); } });
       v.addEventListener('error', fallBack);
+      v.src = g.media.trailer;
       main.prepend(v); main.classList.add('has-video');
       video = v;
       clearInterval(timer);
+      arm(10000); // has to start within 10 s
       v.play().catch((err) => { if (err?.name !== 'AbortError') fallBack(); });
     }
     paintSound();

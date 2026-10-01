@@ -1305,3 +1305,10 @@ body.in-game .site-footer { display: none; }
 .warn-note { padding: 8px 12px; border-left: 3px solid #ffb13d; background: #ffb13d14; font-size: 13px; }
 @media (hover: none) { .shot-tools { opacity: 1; } }
 @media (max-width: 640px) { .trailer-edit { flex-direction: column; } .trailer-edit video { width: 100%; } }
+
+/* Admin: missing-uploads warning shown above the tabs. */
+.adm-alert { border-color: #ff5a6e88; background: linear-gradient(0deg, #ff3e5a14, #ff3e5a14), var(--panel, #150e28); margin-bottom: 16px; }
+.adm-alert h3 { color: #ff8a9a; }
+.adm-alert ul { margin: 8px 0 0; padding-left: 18px; }
+.gp-video-error { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; background: #0a0614cc; color: #cfc6ec; font-size: 12px; }
+.gp-stage { position: relative; }

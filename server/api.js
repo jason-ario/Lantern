@@ -8,11 +8,11 @@ import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as db from './db.js';
 import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
-import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR } from './packages.js';
+import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR, packageDir } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
 import { rankings, publicRank, creatorRank } from './ranking.js';
 import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES, TRAILER_MAX_MB } from './config.js';
-import { putDir, putObject, putFile } from './storage.js';
+import { putDir, putObject, putFile, storageEnabled } from './storage.js';
 import { emails, emailEnabled } from './email.js';
 import { reportError } from './monitoring.js';
 import { LEGAL_VERSIONS } from '../public/js/legal.js';
@@ -1030,8 +1030,32 @@ route('DELETE', '/api/reviews/:id', ({ session, params }) => {
 // ----- site settings (admin) -----
 route('GET', '/api/admin/settings', ({ session }) => {
   requireAdmin(session);
-  return { demoContent: demoMode(), demoContentDefault: DEMO_CONTENT_DEFAULT, modes: DEMO_CONTENT_MODES, requireApproval: requireApproval() };
+  return { demoContent: demoMode(), demoContentDefault: DEMO_CONTENT_DEFAULT, modes: DEMO_CONTENT_MODES, requireApproval: requireApproval(), storage: storageEnabled(), missingFiles: missingUploads() };
 });
+
+// Uploaded files that the database points at but the disk no longer has. This happens
+// when DATA_DIR isn't on a persistent disk and object storage (S3/R2) isn't set up:
+// every redeploy or restart starts with an empty disk, so creator games, art and
+// trailers 404 until they're uploaded again. With object storage on, missing files are
+// pulled back on first request, so nothing is reported.
+export function missingUploads() {
+  if (storageEnabled()) return [];
+  const out = [];
+  for (const g of db.all('games')) {
+    if (isSample(g) || listingOf(g) === 'removed') continue;
+    const missing = [];
+    const ver = g.currentVersionId ? db.get('gameVersions', g.currentVersionId) : null;
+    if (ver?.version && !fs.existsSync(path.join(packageDir(g.id, ver.version), 'manifest.json'))) missing.push(`game build ${ver.version}`);
+    const media = g.media ?? {};
+    const urls = [media.cover, media.header, media.hero, media.trailer, ...(media.screenshots ?? [])].filter((u) => typeof u === 'string' && u.startsWith('/user-media/'));
+    const gone = urls.filter((u) => !fs.existsSync(path.join(USER_MEDIA_DIR, decodeURIComponent(u.slice('/user-media/'.length)))));
+    if (gone.some((u) => u === media.trailer)) missing.push('trailer');
+    const art = gone.filter((u) => u !== media.trailer).length;
+    if (art) missing.push(`${art} image${art === 1 ? '' : 's'}`);
+    if (missing.length) out.push({ id: g.id, title: g.title, missing });
+  }
+  return out;
+}
 route('PUT', '/api/admin/settings', ({ user, session, body }) => {
   requireAdmin(session);
   if (body?.demoContent !== undefined) {

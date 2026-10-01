@@ -235,6 +235,16 @@ export async function render(root, _, query) {
     <div id="admBody"><div class="spinner lg"></div></div>
   </div>`;
   const el = root.querySelector('#admBody');
+  // Warn on every tab when uploaded files have vanished from the server's disk.
+  api.admin.settings().then((s) => {
+    if (!s.missingFiles?.length || !root.isConnected) return;
+    const box = document.createElement('section');
+    box.className = 'panel adm-alert';
+    box.innerHTML = `<h3>Uploaded files are missing on this server</h3>
+      <p class="muted small">The database still lists these files, but the server’s disk doesn’t have them, so they show up broken for players. This happens when the server restarts without a persistent disk or object storage. Re-upload them from Publish → Edit store page / Upload update, and set up object storage (S3_BUCKET…) or a persistent disk so it doesn’t happen again.</p>
+      <ul>${s.missingFiles.map((m) => `<li><a href="/app/${esc(m.id)}" data-link><b>${esc(m.title)}</b></a>: ${esc(m.missing.join(', '))}</li>`).join('')}</ul>`;
+    root.querySelector('.adm-tabs')?.before(box);
+  }).catch(() => {});
   try { await RENDER[tab](el); } catch (err) { el.innerHTML = `<p class="muted">${esc(err.message)}</p>`; }
   return null;
 }
