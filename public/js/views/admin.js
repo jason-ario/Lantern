@@ -176,10 +176,47 @@ async function renderSettings(el) {
   };
 }
 
+function confirmDialog(title, body, cta) {
+  return new Promise((resolve) => {
+    modal(`<div class="confirm"><h3>${esc(title)}</h3><p class="muted">${body}</p>
+      <div class="co-actions"><button type="button" class="btn btn-ghost" data-no>Cancel</button><button type="button" class="btn btn-buy" data-yes>${esc(cta)}</button></div></div>`, {
+      onMount(el, close) {
+        el.querySelector('[data-no]').onclick = () => { close(); resolve(false); };
+        el.querySelector('[data-yes]').onclick = () => { close(); resolve(true); };
+      },
+    });
+  });
+}
+
 async function renderOutbox(el) {
-  const rows = await api.admin.outbox();
-  el.innerHTML = `<p class="muted small">The last emails the site sent (or, without a Resend key, would have sent). Useful for checking templates and finding verification links while testing.</p>
+  const [rows, u] = await Promise.all([api.admin.outbox(), api.admin.unverified()]);
+  const btnLabel = u.running ? `Sending… ${u.running.sent + u.running.failed}/${u.running.total}` : `Resend verification to all unconfirmed accounts (${u.pending})`;
+  const disabled = !u.emailEnabled || !!u.running || !u.pending;
+  el.innerHTML = `<section class="panel">
+      <h3>Unconfirmed accounts <span class="count">${u.count}</span></h3>
+      <p class="muted small">${!u.emailEnabled
+        ? 'Email isn’t set up on this server yet (no <code>RESEND_API_KEY</code>), so this button is off. Set the key on your host and redeploy first.'
+        : 'Sends each unconfirmed account a fresh 48-hour confirmation link. Everyone gets it at most once, so pressing it again only reaches people it missed or new sign-ups.'}</p>
+      <button class="btn btn-buy" id="bulkVerify" ${disabled ? 'disabled' : ''}>${esc(btnLabel)}</button>
+      ${u.count ? `<details class="adm-mail"><summary class="muted small">Show accounts</summary><table class="adm-table"><thead><tr><th>Account</th><th>Signed up</th><th>Bulk link</th></tr></thead><tbody>
+        ${u.users.map((x) => `<tr><td><b>${esc(x.name)}</b><div class="muted small">${esc(x.email)}</div></td><td>${x.memberSince ? ago(x.memberSince) : '—'}</td><td>${x.bulkSentAt ? `Sent ${ago(x.bulkSentAt)}` : '<span class="muted small">Not yet</span>'}</td></tr>`).join('')}
+      </tbody></table></details>` : ''}
+    </section>
+    <h3 class="adm-h">Email outbox</h3>
+    <p class="muted small">The last emails the site sent (or, without a Resend key, would have sent). Useful for checking templates and finding verification links while testing.</p>
     ${rows.map((m) => `<details class="adm-mail"><summary><b>${esc(m.subject)}</b> <span class="muted small">to ${esc(m.to)} · ${ago(m.createdAt)} · ${esc(m.status)}</span></summary><pre>${esc(m.text)}</pre>${m.error ? `<p class="muted small">Error: ${esc(m.error)}</p>` : ''}</details>`).join('') || '<p class="muted">No emails yet.</p>'}`;
+  if (u.running) setTimeout(() => { if (el.isConnected && el.querySelector('#bulkVerify')) renderOutbox(el).catch(() => {}); }, 3000);
+  const b = el.querySelector('#bulkVerify');
+  b.onclick = async () => {
+    const ok = await confirmDialog(`Email ${u.pending} unconfirmed account${u.pending === 1 ? '' : 's'}?`, 'Each one gets a fresh link to confirm their email. Older links stop working.', 'Send links');
+    if (!ok) return;
+    b.disabled = true;
+    try {
+      const r = await api.admin.resendUnverified();
+      toast(r.queued ? `Sending ${r.queued} confirmation email${r.queued === 1 ? '' : 's'}. Results show up below.` : 'Everyone has already been sent a link.', { kind: 'ok' });
+      setTimeout(() => renderOutbox(el).catch(() => {}), 1500);
+    } catch (err) { b.disabled = false; toast(esc(err.message), { kind: 'error' }); }
+  };
 }
 
 const RENDER = { queue: renderQueue, reports: renderReports, games: renderGames, orders: renderOrders, creators: renderCreators, settings: renderSettings, outbox: renderOutbox };

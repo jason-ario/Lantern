@@ -13,7 +13,7 @@ import { art, paletteFromSeed } from './art.js';
 import { rankings, publicRank, creatorRank } from './ranking.js';
 import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES, TRAILER_MAX_MB } from './config.js';
 import { putDir, putObject, putFile } from './storage.js';
-import { emails } from './email.js';
+import { emails, emailEnabled } from './email.js';
 import { reportError } from './monitoring.js';
 import { LEGAL_VERSIONS } from '../public/js/legal.js';
 import { hashPassword, verifyPassword, EMAIL_RE, uniqueUsername, mergeUsers, googleEnabled, googleStartUrl, googleFinish } from './auth.js';
@@ -1061,9 +1061,9 @@ function useToken(type, raw) {
   return db.get('users', t.userId) ?? fail(400, 'This link is invalid or has expired.');
 }
 function sendVerification(user, ctx) {
-  if (!user.email || emailVerified(user)) return;
+  if (!user.email || emailVerified(user)) return Promise.resolve({ skipped: true });
   const raw = createToken('verify', user.id, 48 * 3600e3);
-  emails.verify(user.email, user.displayName, `${baseUrl(ctx)}/verify-email?token=${raw}`);
+  return emails.verify(user.email, user.displayName, `${baseUrl(ctx)}/verify-email?token=${raw}`);
 }
 route('POST', '/api/auth/verify/resend', ({ user, ctx }) => {
   if (emailVerified(user)) return { ok: true, alreadyVerified: true };
@@ -1421,6 +1421,50 @@ route('POST', '/api/admin/creators/:id/:action', ({ session, params }) => {
 route('GET', '/api/admin/outbox', ({ session }) => {
   requireAdmin(session);
   return db.all('outbox').slice(-60).reverse();
+});
+
+// Unconfirmed accounts + a one-click "send everyone a fresh verification link".
+// Built for the launch week when verification emails weren't going out. Each
+// account gets the bulk email at most once (`verifyBulkSentAt`, set only after
+// Resend accepts it), so pressing the button again only reaches people it missed.
+const unconfirmed = () => db.filter('users', (u) => !u.guest && u.email && !emailVerified(u))
+  .sort((a, b) => String(b.memberSince ?? '').localeCompare(String(a.memberSince ?? '')));
+let bulkVerify = null; // { total, sent, failed, startedAt } while a run is in progress
+route('GET', '/api/admin/unverified', ({ session }) => {
+  requireAdmin(session);
+  const rows = unconfirmed();
+  return {
+    emailEnabled: emailEnabled(),
+    running: bulkVerify,
+    count: rows.length,
+    pending: rows.filter((u) => !u.verifyBulkSentAt).length,
+    users: rows.slice(0, 500).map((u) => ({ id: u.id, name: u.displayName, email: u.email, memberSince: u.memberSince ?? null, bulkSentAt: u.verifyBulkSentAt ?? null })),
+  };
+});
+route('POST', '/api/admin/unverified/resend', ({ session, ctx }) => {
+  requireAdmin(session);
+  if (!emailEnabled()) fail(409, 'Email isn’t set up on this server yet (no RESEND_API_KEY), so nothing would be sent.');
+  if (bulkVerify) fail(409, 'Already sending. Check back in a minute.');
+  const targets = unconfirmed().filter((u) => !u.verifyBulkSentAt);
+  if (!targets.length) return { queued: 0 };
+  bulkVerify = { total: targets.length, sent: 0, failed: 0, startedAt: db.now() };
+  (async () => {
+    try {
+      for (const u of targets) {
+        const fresh = db.get('users', u.id);
+        if (!fresh || emailVerified(fresh) || fresh.verifyBulkSentAt) continue;
+        const r = await sendVerification(fresh, ctx).catch((err) => ({ failed: true, error: err.message }));
+        if (r?.sent) { db.update(fresh, { verifyBulkSentAt: db.now() }); bulkVerify.sent++; } else bulkVerify.failed++;
+        await new Promise((ok) => setTimeout(ok, 600)); // stay under Resend's 2 requests/second
+      }
+    } catch (err) {
+      reportError(err, { where: 'bulk-verify' });
+    } finally {
+      console.log(`[email] bulk verification: ${bulkVerify.sent} sent, ${bulkVerify.failed} failed of ${bulkVerify.total}`);
+      bulkVerify = null;
+    }
+  })();
+  return { queued: targets.length };
 });
 
 // Browser errors → error tracking (rate limited, never trusted).

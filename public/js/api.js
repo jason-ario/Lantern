@@ -151,5 +151,7 @@ export const api = {
     creators: () => request('GET', '/api/admin/creators'),
     creatorAction: (id, action) => request('POST', `/api/admin/creators/${enc(id)}/${action}`),
     outbox: () => request('GET', '/api/admin/outbox'),
+    unverified: () => request('GET', '/api/admin/unverified'),
+    resendUnverified: () => request('POST', '/api/admin/unverified/resend'),
   },
 };
