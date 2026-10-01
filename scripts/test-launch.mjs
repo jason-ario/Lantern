@@ -23,7 +23,7 @@ const WHSEC = 'whsec_launch';
 // ---------------- fakes: Resend, Stripe, S3 ----------------
 const mails = [];
 const stripe = { sessions: new Map(), accounts: new Map(), transfers: [], reversals: [], refunds: [] };
-const s3 = new Map();
+const s3 = new Map(); const s3gets = [];
 const readBody = (req) => new Promise((r) => { const c = []; req.on('data', (x) => c.push(x)); req.on('end', () => r(Buffer.concat(c))); });
 const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
 const fakes = http.createServer(async (req, res) => {
@@ -39,7 +39,8 @@ const fakes = http.createServer(async (req, res) => {
     if (!/^AWS4-HMAC-SHA256 Credential=AKTEST\//.test(req.headers.authorization ?? '')) { res.writeHead(403); res.end(); return; }
     const key = decodeURIComponent(u.pathname.slice('/vibe-bucket/'.length));
     if (req.method === 'PUT') { s3.set(key, body); res.writeHead(200); res.end(); return; }
-    if (req.method === 'GET') { const b = s3.get(key); if (!b) { res.writeHead(404); res.end(); return; } res.writeHead(200); res.end(b); return; }
+    if (req.method === 'GET') { s3gets.push(key); const b = s3.get(key); if (!b) { res.writeHead(404); res.end(); return; } res.writeHead(200); res.end(b); return; }
+    if (req.method === 'HEAD') { res.writeHead(s3.has(key) ? 200 : 404); res.end(); return; }
   }
   // --- Stripe ---
   if (u.pathname.startsWith('/v1/')) {
@@ -285,6 +286,20 @@ try {
   await start();
   const html = await (await fetch(`${BASE}/games/${gid}/1.0.1/index.html`)).text();
   check('Game files come back from object storage after the disk is wiped', html.includes('v1.0.1'));
+  // Several requests for the same missing file at once (a video's Range requests) share one download.
+  const mediaKey = [...s3.keys()].find((k) => k.startsWith(`media/${gid}/`));
+  fs.rmSync(path.join(env.DATA_DIR, mediaKey), { force: true });
+  s3gets.length = 0;
+  const same = await Promise.all([1, 2, 3, 4].map(() => fetch(`${BASE}/user-media/${mediaKey.slice('media/'.length)}`).then(async (r) => ({ status: r.status, len: (await r.arrayBuffer()).byteLength }))));
+  check('Restoring one file for several requests downloads it once', same.every((r) => r.status === 200 && r.len === s3.get(mediaKey).length) && s3gets.filter((k) => k === mediaKey).length === 1, JSON.stringify({ same, gets: s3gets.filter((k) => k === mediaKey).length }));
+  check('Restores leave no partial files behind', !fs.readdirSync(path.dirname(path.join(env.DATA_DIR, mediaKey))).some((f) => f.endsWith('.part')));
+  // Files on disk that the bucket lacks (saved while storage was off, or a failed copy) are backed up at startup.
+  const pkgKey = [...s3.keys()].find((k) => k.startsWith(`packages/${gid}/`) && fs.existsSync(path.join(env.DATA_DIR, k))); // only files this disk has
+  s3.delete(pkgKey); s3.delete(mediaKey);
+  await stop(); await start();
+  for (let i = 0; i < 50 && !(s3.has(pkgKey) && s3.has(mediaKey)); i++) await wait(200);
+  check('Startup backs up files the bucket is missing', s3.has(pkgKey) && s3.has(mediaKey));
+  check('…and logs the result', /backup check: \d+ files, 2 newly uploaded/.test(server.log()), server.log().split('\n').filter((l) => l.includes('[storage]')).join(' | '));
 
   // ---------- Postgres ----------
   if (process.env.TEST_DATABASE_URL) {

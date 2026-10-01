@@ -10,6 +10,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { S3_BUCKET, S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } from './config.js';
 
 export const storageEnabled = () => !!(S3_BUCKET && S3_ENDPOINT && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY);
@@ -73,12 +75,66 @@ export async function putFile(localFile, key, contentType) {
   return putObject(key, fs.readFileSync(localFile), contentType);
 }
 
+export async function hasObject(key) {
+  if (!storageEnabled()) return false;
+  const res = await s3('HEAD', key);
+  if (res.status === 404 || res.status === 403) return false;
+  if (!res.ok) throw new Error(`Storage check failed (${res.status}) for ${key}`);
+  return true;
+}
+
 // Make sure `localFile` exists, fetching it from the bucket (`key`) if needed.
+// The download streams to disk (a 200 MB trailer never sits in memory), and
+// simultaneous requests for the same missing file share one download, e.g. the
+// several Range requests a browser makes when a video starts.
+const restoring = new Map();
 export async function ensureLocal(localFile, key) {
   if (fs.existsSync(localFile) || !storageEnabled()) return fs.existsSync(localFile);
-  const buf = await getObject(key);
-  if (!buf) return false;
-  fs.mkdirSync(path.dirname(localFile), { recursive: true });
-  fs.writeFileSync(localFile, buf);
-  return true;
+  if (restoring.has(localFile)) return restoring.get(localFile);
+  const job = (async () => {
+    const res = await s3('GET', key);
+    if (res.status === 404 || res.status === 403) { await res.body?.cancel(); return false; }
+    if (!res.ok || !res.body) throw new Error(`Storage download failed (${res.status}) for ${key}`);
+    fs.mkdirSync(path.dirname(localFile), { recursive: true });
+    const part = `${localFile}.${process.pid}.${Date.now()}.part`;
+    try {
+      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(part));
+      fs.renameSync(part, localFile);
+    } catch (err) { fs.rmSync(part, { force: true }); throw err; }
+    return true;
+  })().finally(() => restoring.delete(localFile));
+  restoring.set(localFile, job);
+  return job;
+}
+
+// Upload every local file under `localDir` that the bucket doesn't have yet.
+// Run at startup, so anything saved while storage was off (or while an upload to
+// it failed) still ends up backed up. Returns { checked, uploaded, failed }.
+export async function backfillDir(localDir, prefix, { concurrency = 6 } = {}) {
+  const out = { checked: 0, uploaded: 0, failed: 0 };
+  if (!storageEnabled() || !fs.existsSync(localDir)) return out;
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (!e.name.startsWith('.') && !e.name.endsWith('.part')) files.push(p);
+    }
+  };
+  walk(localDir);
+  let i = 0;
+  const worker = async () => {
+    while (i < files.length) {
+      const file = files[i++];
+      const key = `${prefix}/${path.relative(localDir, file).split(path.sep).join('/')}`;
+      out.checked++;
+      try {
+        if (await hasObject(key)) continue;
+        await putObject(key, fs.readFileSync(file));
+        out.uploaded++;
+      } catch { out.failed++; }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return out;
 }

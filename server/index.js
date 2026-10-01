@@ -11,7 +11,7 @@ import * as db from './db.js';
 import { seed, syncSeedCatalog } from './seed.js';
 import crypto from 'node:crypto';
 import { handleApi, HttpError, googleStart, googleCallback, stripeWebhook, settleAllCreators, missingUploads } from './api.js';
-import { ensureLocal, storageEnabled } from './storage.js';
+import { ensureLocal, storageEnabled, backfillDir } from './storage.js';
 import { reportError, installProcessHandlers, monitoringEnabled } from './monitoring.js';
 import { emailEnabled } from './email.js';
 import { initSigning } from './signing.js';
@@ -289,6 +289,19 @@ server.listen(PORT, () => {
   }
   console.log(`  email: ${emailEnabled() ? 'Resend' : 'logged only'} · errors: ${monitoringEnabled() ? 'Sentry' : 'console'} · admins: ${ADMIN_OPEN ? 'everyone (local dev)' : [ADMIN_EMAILS.length ? `${ADMIN_EMAILS.length} email(s)` : '', ADMIN_PASSWORD ? 'password' : ''].filter(Boolean).join(' + ') || 'none — set ADMIN_EMAILS'}`);
 });
+// Back up anything on disk that object storage doesn't have yet (uploads made before storage was
+// configured, or whose copy failed). Runs in the background after startup.
+if (storageEnabled()) {
+  setTimeout(async () => {
+    try {
+      const pk = await backfillDir(PUBLISHED_PACKAGES_DIR, 'packages');
+      const md = await backfillDir(USER_MEDIA_DIR, 'media');
+      const up = pk.uploaded + md.uploaded, bad = pk.failed + md.failed;
+      console.log(`[storage] backup check: ${pk.checked + md.checked} files, ${up} newly uploaded${bad ? `, ${bad} failed` : ''}`);
+      if (bad) reportError(new Error(`${bad} uploaded file(s) could not be copied to object storage`), { where: 'storage backfill', silent: true });
+    } catch (err) { reportError(err, { where: 'storage backfill' }); }
+  }, 3000).unref();
+}
 // Creator payouts that couldn't be sent yet (account not ready, Stripe hiccup) are retried.
 setInterval(() => { settleAllCreators().catch((err) => reportError(err, { where: 'settleAllCreators' })); }, 10 * 60e3).unref();
 let closing = false;
