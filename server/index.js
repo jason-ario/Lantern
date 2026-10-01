@@ -281,12 +281,15 @@ server.listen(PORT, () => {
   if (GAMES_ORIGIN && !PUBLIC_URL) console.warn('  ! GAMES_ORIGIN is set without PUBLIC_URL — game frames can be embedded by any site');
   console.log(`  data: ${db.backend() === 'postgres' ? 'Postgres' : DATA_DIR} · uploads: ${storageEnabled() ? 'object storage + disk' : 'disk'} · accounts: ${ACCOUNT_MODE} · publishing: ${ADMIN_OPEN ? 'open (local dev)' : 'creator accounts'}${IS_PROD ? ' · production' : ''}`);
   if (IS_PROD && !storageEnabled()) console.warn('  ! Object storage (S3_BUCKET…) is not set: uploaded games, art and trailers live only on this disk. Without a persistent disk they vanish on every redeploy or restart.');
-  const missing = missingUploads();
+  // Checked in the background (it may ask the bucket), a little after startup.
+  setTimeout(async () => {
+  const missing = await missingUploads({ fresh: true }).catch(() => []);
   if (missing.length) {
-    const msg = `Uploaded files are missing from the disk for ${missing.length} game(s): ${missing.map((m) => `${m.title} (${m.missing.join(', ')})`).join('; ')}. Re-upload them, and set up a persistent disk or object storage.`;
+    const msg = `Uploaded files are missing (not on disk or in object storage) for ${missing.length} game(s): ${missing.map((m) => `${m.title} (${m.missing.join(', ')})`).join('; ')}. Re-upload them, and set up a persistent disk or object storage.`;
     console.warn(`  ! ${msg}`);
     reportError(new Error(msg), { where: 'startup: missing uploads', silent: true });
   }
+  }, 15000).unref();
   console.log(`  email: ${emailEnabled() ? 'Resend' : 'logged only'} · errors: ${monitoringEnabled() ? 'Sentry' : 'console'} · admins: ${ADMIN_OPEN ? 'everyone (local dev)' : [ADMIN_EMAILS.length ? `${ADMIN_EMAILS.length} email(s)` : '', ADMIN_PASSWORD ? 'password' : ''].filter(Boolean).join(' + ') || 'none — set ADMIN_EMAILS'}`);
 });
 // Back up anything on disk that object storage doesn't have yet (uploads made before storage was

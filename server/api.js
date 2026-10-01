@@ -11,8 +11,8 @@ import { seed, seedDemoUser, createVersion, DEFAULT_USER_ID } from './seed.js';
 import { inspectPackage, installPackage, PUBLISHED_PACKAGES_DIR, packageDir } from './packages.js';
 import { art, paletteFromSeed } from './art.js';
 import { rankings, publicRank, creatorRank } from './ranking.js';
-import { USER_MEDIA_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES, TRAILER_MAX_MB } from './config.js';
-import { putDir, putObject, putFile, storageEnabled } from './storage.js';
+import { USER_MEDIA_DIR, BUILTIN_PACKAGES_DIR, ADMIN_PASSWORD, ADMIN_OPEN, ACCOUNT_MODE, PUBLIC_URL, GAMES_ORIGIN, CURRENCY, CREATOR_SHARE, DEMO_CONTENT_DEFAULT, DEMO_CONTENT_MODES, ADMIN_EMAILS, REQUIRE_APPROVAL_DEFAULT, REFUND_WINDOW_DAYS, REFUND_MAX_PLAY_MINUTES, TRAILER_MAX_MB } from './config.js';
+import { putDir, putObject, putFile, storageEnabled, hasObject } from './storage.js';
 import { emails, emailEnabled } from './email.js';
 import { reportError } from './monitoring.js';
 import { LEGAL_VERSIONS } from '../public/js/legal.js';
@@ -768,6 +768,7 @@ function canUpdateGame(user, session, g) {
 }
 // Copy freshly written uploads (package + media) to object storage, if configured.
 async function backupUploads(gameId, version) {
+  missingCache.at = 0;
   try {
     if (version) await putDir(path.join(PUBLISHED_PACKAGES_DIR, gameId, version), `packages/${gameId}/${version}`);
     const media = path.join(USER_MEDIA_DIR, gameId);
@@ -912,6 +913,7 @@ route('PUT', '/api/creator/games/:id/trailer', async ({ user, session, params, r
     try { await putFile(path.join(dir, finalName), `media/${g.id}/${finalName}`, kind === 'mp4' ? 'video/mp4' : 'video/webm'); }
     catch (err) { reportError(err, { where: 'trailer backup', gameId: g.id }); }
     const old = g.media?.trailer;
+    missingCache.at = 0;
     db.update(g, { media: { ...g.media, trailer: url }, moderation: [...(g.moderation ?? []), { at: db.now(), action: 'edited', by: user.id, fields: ['trailer'] }] });
     if (old && old !== url) removeTrailerFile(old);
     return { ok: true, trailer: url, sizeBytes: size, game: publicGame(g) };
@@ -1028,32 +1030,46 @@ route('DELETE', '/api/reviews/:id', ({ session, params }) => {
 });
 
 // ----- site settings (admin) -----
-route('GET', '/api/admin/settings', ({ session }) => {
+route('GET', '/api/admin/settings', async ({ session }) => {
   requireAdmin(session);
-  return { demoContent: demoMode(), demoContentDefault: DEMO_CONTENT_DEFAULT, modes: DEMO_CONTENT_MODES, requireApproval: requireApproval(), storage: storageEnabled(), missingFiles: missingUploads() };
+  return { demoContent: demoMode(), demoContentDefault: DEMO_CONTENT_DEFAULT, modes: DEMO_CONTENT_MODES, requireApproval: requireApproval(), storage: storageEnabled(), missingFiles: await missingUploads() };
 });
 
-// Uploaded files that the database points at but the disk no longer has. This happens
-// when DATA_DIR isn't on a persistent disk and object storage (S3/R2) isn't set up:
-// every redeploy or restart starts with an empty disk, so creator games, art and
-// trailers 404 until they're uploaded again. With object storage on, missing files are
-// pulled back on first request, so nothing is reported.
-export function missingUploads() {
-  if (storageEnabled()) return [];
+// Uploaded files that the database points at but that are gone: not on this disk and
+// (when object storage is on) not in the bucket either, so players get a 404. Happens when
+// uploads were made while storage was off or misconfigured and the server then restarted.
+// Results are cached for a minute so the admin console doesn't hammer the bucket.
+let missingCache = { at: 0, value: null };
+export async function missingUploads({ fresh = false } = {}) {
+  // Disk-only checks are cheap; only cache when the bucket has to be asked.
+  if (!fresh && storageEnabled() && missingCache.value && Date.now() - missingCache.at < 60e3) return missingCache.value;
+  const gone = async (localFile, key) => {
+    if (fs.existsSync(localFile)) return false;
+    if (!storageEnabled()) return true;
+    try { return !(await hasObject(key)); } catch { return false; } // bucket unreachable: don't cry wolf
+  };
   const out = [];
   for (const g of db.all('games')) {
     if (isSample(g) || listingOf(g) === 'removed') continue;
     const missing = [];
     const ver = g.currentVersionId ? db.get('gameVersions', g.currentVersionId) : null;
-    if (ver?.version && !fs.existsSync(path.join(packageDir(g.id, ver.version), 'manifest.json'))) missing.push(`game build ${ver.version}`);
+    if (ver?.version && !fs.existsSync(path.join(BUILTIN_PACKAGES_DIR, g.id, ver.version))
+      && await gone(path.join(PUBLISHED_PACKAGES_DIR, g.id, ver.version, 'manifest.json'), `packages/${g.id}/${ver.version}/manifest.json`)) missing.push(`game build ${ver.version}`);
     const media = g.media ?? {};
     const urls = [media.cover, media.header, media.hero, media.trailer, ...(media.screenshots ?? [])].filter((u) => typeof u === 'string' && u.startsWith('/user-media/'));
-    const gone = urls.filter((u) => !fs.existsSync(path.join(USER_MEDIA_DIR, decodeURIComponent(u.slice('/user-media/'.length)))));
-    if (gone.some((u) => u === media.trailer)) missing.push('trailer');
-    const art = gone.filter((u) => u !== media.trailer).length;
-    if (art) missing.push(`${art} image${art === 1 ? '' : 's'}`);
+    const lost = [];
+    for (const u of urls) {
+      const rel = decodeURIComponent(u.slice('/user-media/'.length));
+      if (await gone(path.join(USER_MEDIA_DIR, rel), `media/${rel}`)) lost.push(u);
+    }
+    if (lost.includes(media.trailer)) missing.push('trailer');
+    const shots = lost.filter((u) => (media.screenshots ?? []).includes(u)).length;
+    if (shots) missing.push(`${shots} screenshot${shots === 1 ? '' : 's'}`);
+    const art = lost.filter((u) => u !== media.trailer && !(media.screenshots ?? []).includes(u)).length;
+    if (art) missing.push(`${art} store image${art === 1 ? '' : 's'} (cover/header/banner)`);
     if (missing.length) out.push({ id: g.id, title: g.title, missing });
   }
+  missingCache = { at: Date.now(), value: out };
   return out;
 }
 route('PUT', '/api/admin/settings', ({ user, session, body }) => {

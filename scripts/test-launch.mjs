@@ -300,6 +300,12 @@ try {
   for (let i = 0; i < 50 && !(s3.has(pkgKey) && s3.has(mediaKey)); i++) await wait(200);
   check('Startup backs up files the bucket is missing', s3.has(pkgKey) && s3.has(mediaKey));
   check('…and logs the result', /backup check: \d+ files, 2 newly uploaded/.test(server.log()), server.log().split('\n').filter((l) => l.includes('[storage]')).join(' | '));
+  // With storage on, a file that's on neither the disk nor the bucket is reported to admins.
+  const lostKey = [...s3.keys()].find((k) => k.startsWith(`media/${gid}/`));
+  s3.delete(lostKey); fs.rmSync(path.join(env.DATA_DIR, lostKey), { force: true });
+  await stop(); await start();
+  const missingNow = (await admin.api('GET', '/api/admin/settings')).body;
+  check('Admin sees files missing from both disk and bucket', missingNow.storage === true && missingNow.missingFiles.some((m) => m.id === gid), JSON.stringify(missingNow.missingFiles));
 
   // ---------- Postgres ----------
   if (process.env.TEST_DATABASE_URL) {
