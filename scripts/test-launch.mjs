@@ -264,6 +264,30 @@ try {
   check('Refund email sent', !!(await lastMailTo('fan@example.com', /Refund issued/)));
   check('Can’t refund twice', (await player.api('POST', `/api/orders/${ord.id}/refund`, {})).status === 403);
 
+  // ---------- admin: an account's library + playtime ----------
+  const cl = (await creator.api('POST', `/api/games/${gid}/launch`, { mode: 'full' })).body;
+  await creator.api('POST', `/api/sessions/${cl.session.id}/heartbeat`, { activeSeconds: 5 });
+  const accts = (await admin.api('GET', '/api/admin/accounts')).body.users;
+  const makerId = accts.find((u) => u.email === 'maker@example.com').id;
+  const fanId = accts.find((u) => u.email === 'fan@example.com').id;
+  check('Players can’t view someone’s library', (await player.api('GET', `/api/admin/accounts/${makerId}`)).status === 403);
+  const lib = (await admin.api('GET', `/api/admin/accounts/${makerId}`)).body;
+  const row = lib.library?.find((x) => x.gameId === gid);
+  check('Admin sees an account’s library with playtime per game', row && row.owned && row.source === 'developer' && row.playtimeSeconds >= 5 && row.sessions >= 1 && !!row.lastPlayedAt && lib.totals.playtimeSeconds >= 5, JSON.stringify(lib.totals));
+  check('Accounts list shows total playtime', accts.find((u) => u.id === makerId).playtimeSeconds >= 5);
+  const fanLib = (await admin.api('GET', `/api/admin/accounts/${fanId}`)).body;
+  check('Refunded games show as refunded, not owned', fanLib.library.some((x) => x.gameId === gid && !x.owned && x.source === 'refunded') && fanLib.totals.owned === 0, JSON.stringify(fanLib.library));
+  check('Unknown account → 404', (await admin.api('GET', '/api/admin/accounts/usr_nope')).status === 404);
+  await admin.page.goto(`${BASE}/admin?tab=accounts&q=maker`);
+  await admin.page.waitForSelector(`[data-acct="${makerId}"]`, { timeout: 10000 }).catch(() => {});
+  await admin.page.click(`[data-acct="${makerId}"]`);
+  await admin.page.waitForSelector('.adm-lib tbody tr', { timeout: 5000 }).catch(() => {});
+  const libText = await admin.page.$eval('.adm-lib', (e) => e.innerText).catch(() => '');
+  check('Library button opens the account’s games and playtime', libText.includes('Maker’s library') && libText.includes('Neon Snake') && libText.includes('Creator’s own game'), libText.slice(0, 200));
+  await wait(400);
+  await admin.page.screenshot({ path: process.env.LIBRARY_SHOT || path.join(tmp, 'library.png') });
+  await admin.page.keyboard.press('Escape');
+
   // ---------- reports + takedown ----------
   check('Players can report a game', (await player.api('POST', '/api/reports', { type: 'game', targetId: gid, reason: 'broken', details: 'Black screen' })).body?.ok === true);
   const reps = (await admin.api('GET', '/api/admin/reports')).body;
