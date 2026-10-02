@@ -1,11 +1,11 @@
 // Admin console (/admin): review queue, reports, games, orders & refunds,
-// creators, site settings and the email outbox.
+// accounts, creators, site settings and the email outbox.
 import { api } from '../api.js';
 import { state, applyUserState, loadCatalog } from '../state.js';
 import { esc, toast, modal, date, ago, bytes, price, vibeChips } from '../ui.js';
 import { go } from '../nav.js';
 
-const TABS = [['queue', 'Review queue'], ['reports', 'Reports'], ['games', 'Games'], ['orders', 'Orders & refunds'], ['creators', 'Creators'], ['settings', 'Settings'], ['outbox', 'Email outbox']];
+const TABS = [['queue', 'Review queue'], ['reports', 'Reports'], ['games', 'Games'], ['orders', 'Orders & refunds'], ['accounts', 'Accounts'], ['creators', 'Creators'], ['settings', 'Settings'], ['outbox', 'Email outbox']];
 const LISTING = { pending: 'Awaiting review', live: 'Live', rejected: 'Changes requested', removed: 'Taken down' };
 const listingPill = (l) => `<span class="lst lst-${esc(l)}">${esc(LISTING[l] ?? l)}</span>`;
 const REASONS = { broken: 'Doesn’t work', malware: 'Malware / suspicious', stolen: 'Stolen content', offensive: 'Offensive', misleading: 'Misleading store page', spam: 'Spam', other: 'Other' };
@@ -137,6 +137,33 @@ async function renderOrders(el, q = '') {
   };
 }
 
+const ACCOUNT_FILTERS = [['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive'], ['unconfirmed', 'Unconfirmed'], ['creators', 'Creators']];
+async function renderAccounts(el, filter = 'all', q = '') {
+  const { summary: s, users, matched } = await api.admin.accounts(filter, q);
+  const tile = (n, label, sub = '', f = '') => `<button type="button" class="adm-stat${f === filter ? ' on' : ''}" ${f ? `data-f="${f}"` : 'disabled'}><b>${n}</b><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
+  el.innerHTML = `<div class="adm-stats">
+      ${tile(s.total, 'Accounts set up', s.newThisWeek ? `+${s.newThisWeek} this week` : 'none new this week', 'all')}
+      ${tile(s.active30d, 'Active', `last ${s.activeDays} days · ${s.active7d} this week · ${s.active24h} today`, 'active')}
+      ${tile(s.inactive, 'Inactive', `no visit in ${s.activeDays}+ days`, 'inactive')}
+      ${tile(s.unconfirmed, 'Unconfirmed email', `${s.verified} confirmed`, 'unconfirmed')}
+      ${tile(s.creators, 'Creators', 'active creator accounts', 'creators')}
+    </div>
+    <div class="adm-filter">${ACCOUNT_FILTERS.map(([k, l]) => `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <form class="adm-search" id="aSearch"><input name="q" placeholder="Search name, username or email" value="${esc(q)}"><button class="btn btn-ghost btn-sm">Search</button></form>
+    <p class="muted small">${matched} account${matched === 1 ? '' : 's'} shown, most recently active first. “Active” means signed in and used the site in the last ${s.activeDays} days.</p>
+    <table class="adm-table"><thead><tr><th>Account</th><th>Status</th><th>Last active</th><th>Joined</th><th>Library</th><th>Role</th></tr></thead><tbody>
+    ${users.map((u) => `<tr>
+      <td><b>${esc(u.name)}</b>${u.username ? ` <span class="muted small">@${esc(u.username)}</span>` : ''}<div class="muted small">${esc(u.email ?? '(no email)')}${u.google ? ' · Google' : ''}</div></td>
+      <td>${u.active ? '<span class="lst lst-live">Active</span>' : '<span class="lst lst-removed">Inactive</span>'}${u.verified ? '' : '<div><span class="lst lst-pending">Email not confirmed</span></div>'}</td>
+      <td>${u.lastActiveAt ? `${ago(u.lastActiveAt)}<div class="muted small">${date(u.lastActiveAt)}</div>` : '—'}</td>
+      <td>${u.memberSince ? date(u.memberSince) : '—'}</td>
+      <td>${u.games ? `${u.games} game${u.games === 1 ? '' : 's'}` : '<span class="muted small">—</span>'}</td>
+      <td>${[u.admin ? 'Admin' : '', u.creator === 'active' ? 'Creator' : u.creator === 'suspended' ? 'Creator (suspended)' : ''].filter(Boolean).join('<br>') || '<span class="muted small">Player</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">No accounts match.</td></tr>'}</tbody></table>`;
+  el.querySelector('#aSearch').onsubmit = (e) => { e.preventDefault(); renderAccounts(el, filter, e.target.q.value.trim()); };
+  el.onclick = (e) => { const f = e.target.closest('[data-f]'); if (f) renderAccounts(el, f.dataset.f, q); };
+}
+
 async function renderCreators(el) {
   const rows = await api.admin.creators();
   el.innerHTML = `<table class="adm-table"><thead><tr><th>Creator</th><th>Since</th><th>Games</th><th>Payouts</th><th>Status</th><th></th></tr></thead><tbody>
@@ -219,7 +246,7 @@ async function renderOutbox(el) {
   };
 }
 
-const RENDER = { queue: renderQueue, reports: renderReports, games: renderGames, orders: renderOrders, creators: renderCreators, settings: renderSettings, outbox: renderOutbox };
+const RENDER = { queue: renderQueue, reports: renderReports, games: renderGames, orders: renderOrders, accounts: renderAccounts, creators: renderCreators, settings: renderSettings, outbox: renderOutbox };
 
 export async function render(root, _, query) {
   if (!state.creator?.admin) {

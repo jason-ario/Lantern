@@ -148,6 +148,7 @@ export const api = {
     resolveReport: (id, action) => request('POST', `/api/admin/reports/${enc(id)}/resolve`, { action }),
     orders: (q) => request('GET', `/api/admin/orders${q ? `?q=${enc(q)}` : ''}`),
     refund: (id, reason) => request('POST', `/api/admin/orders/${enc(id)}/refund`, { reason }),
+    accounts: (filter, q) => request('GET', `/api/admin/accounts?filter=${enc(filter ?? 'all')}${q ? `&q=${enc(q)}` : ''}`),
     creators: () => request('GET', '/api/admin/creators'),
     creatorAction: (id, action) => request('POST', `/api/admin/creators/${enc(id)}/${action}`),
     outbox: () => request('GET', '/api/admin/outbox'),

@@ -1239,6 +1239,13 @@ body.in-game .site-footer { display: none; }
 .adm-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
 .adm-table a { color: var(--text); }
 .adm-row-actions { text-align: right; white-space: nowrap; }
+.adm-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.adm-stat { display: flex; flex-direction: column; gap: 4px; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; color: var(--text-2); cursor: pointer; font: inherit; }
+.adm-stat:hover { border-color: var(--line-2); }
+.adm-stat.on { border-color: var(--hot); }
+.adm-stat b { font: 700 30px/1 var(--display); color: var(--text); }
+.adm-stat span { font-weight: 600; color: var(--text); }
+.adm-stat small { color: var(--text-3); font-size: 12px; }
 .adm-mail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; margin-bottom: 8px; }
 .adm-mail pre { white-space: pre-wrap; font: 12px/1.5 var(--mono); color: var(--text-2); margin: 10px 0 0; }
 .admin .panel { max-width: 720px; }

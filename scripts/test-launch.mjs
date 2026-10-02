@@ -175,6 +175,27 @@ try {
   check('Admin email isn’t admin until verified', (await admin.api('GET', '/api/state')).body.creator.admin === false);
   await admin.api('POST', '/api/auth/verify', { token: tokenIn((await lastMailTo('boss@example.com', /Confirm/))) });
   check('Verified ADMIN_EMAILS account is an admin', (await admin.api('GET', '/api/state')).body.creator.admin === true);
+  // ---------- admin: accounts overview ----------
+  check('Players can’t list accounts', (await player.api('GET', '/api/admin/accounts')).status === 403);
+  const acc = (await admin.api('GET', '/api/admin/accounts')).body;
+  check('Accounts tab counts every account that was set up', acc.summary.total === 3 && acc.users.length === 3, JSON.stringify(acc.summary));
+  check('…with confirmed / unconfirmed / creator / active counts', acc.summary.verified === 2 && acc.summary.unconfirmed === 1 && acc.summary.creators === 1 && acc.summary.active30d === 3 && acc.summary.newThisWeek === 3, JSON.stringify(acc.summary));
+  const fan = acc.users.find((u) => u.email === 'fan@example.com');
+  check('Each account shows status, last active and role', fan && fan.active === true && fan.verified === false && !!fan.lastActiveAt && acc.users.find((u) => u.email === 'boss@example.com')?.admin === true);
+  check('Accounts filter: unconfirmed', (await admin.api('GET', '/api/admin/accounts?filter=unconfirmed')).body.users.map((u) => u.email).join() === 'fan@example.com');
+  check('Accounts filter: inactive is empty right after sign-up', (await admin.api('GET', '/api/admin/accounts?filter=inactive')).body.matched === 0);
+  check('Accounts search by email', (await admin.api('GET', '/api/admin/accounts?q=MAKER')).body.users.map((u) => u.email).join() === 'maker@example.com');
+  await admin.page.goto(`${BASE}/admin?tab=accounts`);
+  await admin.page.waitForSelector('.adm-stats .adm-stat b', { timeout: 10000 }).catch(() => {});
+  const tiles = await admin.page.$$eval('.adm-stat', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim())).catch(() => []);
+  const rowsShown = await admin.page.$$eval('.adm-table tbody tr', (els) => els.length).catch(() => 0);
+  check('Admin page shows the Accounts tab with totals and a row per account', tiles[0]?.startsWith('3 Accounts set up') && tiles.some((t) => t.startsWith('3 Active')) && rowsShown === 3, tiles.join(' | '));
+  await admin.page.click('.adm-stat[data-f="unconfirmed"]');
+  await admin.page.waitForFunction(() => document.querySelectorAll('.adm-table tbody tr').length === 1, null, { timeout: 5000 }).catch(() => {});
+  check('Clicking a total filters the list', (await admin.page.$$eval('.adm-table tbody tr', (els) => els.length)) === 1);
+  await admin.page.screenshot({ path: process.env.ACCOUNTS_SHOT || path.join(tmp, 'accounts.png'), fullPage: true });
+  check('No browser errors on the Accounts tab', admin.errors.length === 0, admin.errors.join(' | '));
+
   const q = (await admin.api('GET', '/api/admin/queue')).body;
   check('Admin sees the game in the review queue', q.games.some((g) => g.id === gid && g.creator.email === 'maker@example.com'));
   check('Rejecting needs a note', (await admin.api('POST', `/api/admin/games/${gid}/reject`, {})).status === 400);

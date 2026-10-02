@@ -59,6 +59,7 @@ export function authenticate(req, res, ctx) {
   const sess = (sid || legacySid) && db.find('authSessions', (s) => s.id === (sid || legacySid));
   const existing = sess && db.get('users', sess.userId);
   if (existing) {
+    if (!existing.guest) touchLastSeen(existing);
     if (legacySid) res.setHeader('Set-Cookie', [
       `vibe_sid=${legacySid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`,
       `lantern_sid=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${ctx.secure ? '; Secure' : ''}`,
@@ -74,7 +75,17 @@ export function authenticate(req, res, ctx) {
   return { user: null, session: null };
 }
 
+// "Last seen" for the admin Accounts tab. Written at most every 10 minutes per
+// account so ordinary browsing doesn't turn every request into a database write.
+const LAST_SEEN_EVERY_MS = 10 * 60e3;
+function touchLastSeen(user) {
+  const prev = user.lastSeenAt ? Date.parse(user.lastSeenAt) : 0;
+  if (Date.now() - prev >= LAST_SEEN_EVERY_MS) db.update(user, { lastSeenAt: db.now() });
+}
+
 function startSession(res, userId, ctx) {
+  const u = db.get('users', userId);
+  if (u && !u.guest) db.update(u, { lastSeenAt: db.now() });
   const sid = crypto.randomBytes(24).toString('hex');
   const session = db.insert('authSessions', { id: sid, userId, admin: false, createdAt: db.now() });
   res.setHeader('Set-Cookie', `vibe_sid=${sid}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=31536000${ctx.secure ? '; Secure' : ''}`);
@@ -1458,6 +1469,60 @@ route('POST', '/api/admin/creators/:id/:action', ({ session, params }) => {
   else fail(404, 'Unknown action');
   return { ok: true };
 });
+// Every account that has been set up (old guest rows excluded), with when each
+// was last active. "Last active" is the newest of: last request while signed in
+// (`lastSeenAt`), last sign-in, last play heartbeat and the sign-up date, so
+// accounts from before `lastSeenAt` existed still get a sensible value.
+const DAY_MS = 24 * 3600e3;
+const ACTIVE_DAYS = 30;
+function lastActiveOf(u, latestSignIn, latestPlay) {
+  const t = [u.lastSeenAt, latestSignIn.get(u.id), latestPlay.get(u.id), u.memberSince].filter(Boolean).map((x) => Date.parse(x)).filter(Number.isFinite);
+  return t.length ? new Date(Math.max(...t)).toISOString() : null;
+}
+const newest = (map, id, iso) => { if (iso && (!map.has(id) || map.get(id) < iso)) map.set(id, iso); };
+route('GET', '/api/admin/accounts', ({ session, url }) => {
+  requireAdmin(session);
+  const latestSignIn = new Map(), latestPlay = new Map(), sessionsOpen = new Map(), owned = new Map();
+  for (const s of db.all('authSessions')) { newest(latestSignIn, s.userId, s.createdAt); sessionsOpen.set(s.userId, (sessionsOpen.get(s.userId) ?? 0) + 1); }
+  for (const p of db.all('playSessions')) newest(latestPlay, p.userId, p.lastHeartbeatAt ?? p.startedAt);
+  for (const o of db.all('ownerships')) owned.set(o.userId, (owned.get(o.userId) ?? 0) + 1);
+  const now = Date.now();
+  const rows = db.filter('users', (u) => !u.guest).map((u) => {
+    const lastActiveAt = lastActiveOf(u, latestSignIn, latestPlay);
+    const idle = lastActiveAt ? now - Date.parse(lastActiveAt) : Infinity;
+    return {
+      id: u.id, name: u.displayName, username: u.username ?? null, email: u.email ?? null,
+      verified: emailVerified(u), google: !!u.googleId, admin: isAdminUser(u),
+      creator: u.creator?.status ?? null, memberSince: u.memberSince ?? null,
+      lastActiveAt, active: idle <= ACTIVE_DAYS * DAY_MS, signedIn: (sessionsOpen.get(u.id) ?? 0) > 0,
+      games: owned.get(u.id) ?? 0,
+      _idle: idle,
+    };
+  });
+  const within = (days) => rows.filter((r) => r._idle <= days * DAY_MS).length;
+  const joinedWithin = (days) => rows.filter((r) => r.memberSince && now - Date.parse(r.memberSince) <= days * DAY_MS).length;
+  const summary = {
+    total: rows.length,
+    verified: rows.filter((r) => r.verified).length,
+    unconfirmed: rows.filter((r) => !r.verified).length,
+    creators: rows.filter((r) => r.creator === 'active').length,
+    active24h: within(1), active7d: within(7), active30d: within(ACTIVE_DAYS),
+    inactive: rows.filter((r) => !r.active).length,
+    newThisWeek: joinedWithin(7),
+    activeDays: ACTIVE_DAYS,
+  };
+  const filter = url.searchParams.get('filter') ?? 'all';
+  const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+  let list = rows;
+  if (filter === 'active') list = list.filter((r) => r.active);
+  else if (filter === 'inactive') list = list.filter((r) => !r.active);
+  else if (filter === 'unconfirmed') list = list.filter((r) => !r.verified);
+  else if (filter === 'creators') list = list.filter((r) => r.creator);
+  if (q) list = list.filter((r) => [r.name, r.username, r.email].some((x) => String(x ?? '').toLowerCase().includes(q)));
+  list.sort((a, b) => a._idle - b._idle);
+  return { summary, filter, matched: list.length, users: list.slice(0, 1000).map(({ _idle, ...r }) => r) };
+});
+
 route('GET', '/api/admin/outbox', ({ session }) => {
   requireAdmin(session);
   return db.all('outbox').slice(-60).reverse();
