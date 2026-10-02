@@ -1484,7 +1484,8 @@ route('GET', '/api/admin/accounts', ({ session, url }) => {
   requireAdmin(session);
   const latestSignIn = new Map(), latestPlay = new Map(), sessionsOpen = new Map(), owned = new Map();
   for (const s of db.all('authSessions')) { newest(latestSignIn, s.userId, s.createdAt); sessionsOpen.set(s.userId, (sessionsOpen.get(s.userId) ?? 0) + 1); }
-  for (const p of db.all('playSessions')) newest(latestPlay, p.userId, p.lastHeartbeatAt ?? p.startedAt);
+  const playSecs = new Map();
+  for (const p of db.all('playSessions')) { newest(latestPlay, p.userId, p.lastHeartbeatAt ?? p.startedAt); playSecs.set(p.userId, (playSecs.get(p.userId) ?? 0) + (p.seconds || 0)); }
   for (const o of db.all('ownerships')) owned.set(o.userId, (owned.get(o.userId) ?? 0) + 1);
   const now = Date.now();
   const rows = db.filter('users', (u) => !u.guest).map((u) => {
@@ -1495,7 +1496,7 @@ route('GET', '/api/admin/accounts', ({ session, url }) => {
       verified: emailVerified(u), google: !!u.googleId, admin: isAdminUser(u),
       creator: u.creator?.status ?? null, memberSince: u.memberSince ?? null,
       lastActiveAt, active: idle <= ACTIVE_DAYS * DAY_MS, signedIn: (sessionsOpen.get(u.id) ?? 0) > 0,
-      games: owned.get(u.id) ?? 0,
+      games: owned.get(u.id) ?? 0, playtimeSeconds: playSecs.get(u.id) ?? 0,
       _idle: idle,
     };
   });
@@ -1521,6 +1522,38 @@ route('GET', '/api/admin/accounts', ({ session, url }) => {
   if (q) list = list.filter((r) => [r.name, r.username, r.email].some((x) => String(x ?? '').toLowerCase().includes(q)));
   list.sort((a, b) => a._idle - b._idle);
   return { summary, filter, matched: list.length, users: list.slice(0, 1000).map(({ _idle, ...r }) => r) };
+});
+
+// One account's library: every game they own, plus games they've only played as
+// a demo, with playtime, sessions, last played and achievements per game.
+route('GET', '/api/admin/accounts/:id', ({ session, params }) => {
+  requireAdmin(session);
+  const u = db.get('users', params.id);
+  if (!u || u.guest) fail(404, 'Account not found');
+  const ownRows = db.filter('ownerships', (o) => o.userId === u.id);
+  const played = new Set(db.filter('playSessions', (p) => p.userId === u.id).map((p) => p.gameId));
+  const refunded = new Set(db.filter('orders', (o) => o.userId === u.id && o.status === 'refunded').map((o) => o.gameId));
+  const gameIds = [...new Set([...ownRows.map((o) => o.gameId), ...played, ...refunded])];
+  const library = gameIds.map((gameId) => {
+    const g = db.get('games', gameId);
+    const own = ownRows.find((o) => o.gameId === gameId) ?? null;
+    return {
+      gameId, title: g?.title ?? gameId, media: g?.media ?? null, listing: g ? listingOf(g) : 'removed',
+      owned: !!own, source: own?.source ?? (refunded.has(gameId) ? 'refunded' : 'demo'),
+      pricePaidCents: own?.pricePaidCents ?? null, acquiredAt: own?.acquiredAt ?? null,
+      ...playStats(u.id, gameId),
+    };
+  }).sort((a, b) => String(b.lastPlayedAt ?? '').localeCompare(String(a.lastPlayedAt ?? '')) || b.playtimeSeconds - a.playtimeSeconds);
+  return {
+    user: { ...userBrief(u.id), username: u.username ?? null, memberSince: u.memberSince ?? null, admin: isAdminUser(u) },
+    totals: {
+      owned: library.filter((x) => x.owned).length,
+      playtimeSeconds: library.reduce((t, x) => t + x.playtimeSeconds, 0),
+      sessions: library.reduce((t, x) => t + x.sessions, 0),
+      lastPlayedAt: library.reduce((m, x) => (x.lastPlayedAt && (!m || x.lastPlayedAt > m) ? x.lastPlayedAt : m), null),
+    },
+    library,
+  };
 });
 
 route('GET', '/api/admin/outbox', ({ session }) => {

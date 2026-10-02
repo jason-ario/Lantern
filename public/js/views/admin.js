@@ -2,7 +2,7 @@
 // accounts, creators, site settings and the email outbox.
 import { api } from '../api.js';
 import { state, applyUserState, loadCatalog } from '../state.js';
-import { esc, toast, modal, date, ago, bytes, price, vibeChips } from '../ui.js';
+import { esc, toast, modal, date, ago, bytes, price, hours, vibeChips } from '../ui.js';
 import { go } from '../nav.js';
 
 const TABS = [['queue', 'Review queue'], ['reports', 'Reports'], ['games', 'Games'], ['orders', 'Orders & refunds'], ['accounts', 'Accounts'], ['creators', 'Creators'], ['settings', 'Settings'], ['outbox', 'Email outbox']];
@@ -151,17 +151,55 @@ async function renderAccounts(el, filter = 'all', q = '') {
     <div class="adm-filter">${ACCOUNT_FILTERS.map(([k, l]) => `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${l}</button>`).join('')}</div>
     <form class="adm-search" id="aSearch"><input name="q" placeholder="Search name, username or email" value="${esc(q)}"><button class="btn btn-ghost btn-sm">Search</button></form>
     <p class="muted small">${matched} account${matched === 1 ? '' : 's'} shown, most recently active first. “Active” means signed in and used the site in the last ${s.activeDays} days.</p>
-    <table class="adm-table"><thead><tr><th>Account</th><th>Status</th><th>Last active</th><th>Joined</th><th>Library</th><th>Role</th></tr></thead><tbody>
+    <table class="adm-table"><thead><tr><th>Account</th><th>Status</th><th>Last active</th><th>Joined</th><th>Library</th><th>Playtime</th><th>Role</th><th></th></tr></thead><tbody>
     ${users.map((u) => `<tr>
       <td><b>${esc(u.name)}</b>${u.username ? ` <span class="muted small">@${esc(u.username)}</span>` : ''}<div class="muted small">${esc(u.email ?? '(no email)')}${u.google ? ' · Google' : ''}</div></td>
       <td>${u.active ? '<span class="lst lst-live">Active</span>' : '<span class="lst lst-removed">Inactive</span>'}${u.verified ? '' : '<div><span class="lst lst-pending">Email not confirmed</span></div>'}</td>
       <td>${u.lastActiveAt ? `${ago(u.lastActiveAt)}<div class="muted small">${date(u.lastActiveAt)}</div>` : '—'}</td>
       <td>${u.memberSince ? date(u.memberSince) : '—'}</td>
       <td>${u.games ? `${u.games} game${u.games === 1 ? '' : 's'}` : '<span class="muted small">—</span>'}</td>
+      <td>${u.playtimeSeconds ? hours(u.playtimeSeconds) : '<span class="muted small">—</span>'}</td>
       <td>${[u.admin ? 'Admin' : '', u.creator === 'active' ? 'Creator' : u.creator === 'suspended' ? 'Creator (suspended)' : ''].filter(Boolean).join('<br>') || '<span class="muted small">Player</span>'}</td>
-    </tr>`).join('') || '<tr><td colspan="6" class="muted">No accounts match.</td></tr>'}</tbody></table>`;
+      <td class="adm-row-actions"><button class="btn btn-ghost btn-sm" data-acct="${esc(u.id)}">Library</button></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">No accounts match.</td></tr>'}</tbody></table>`;
   el.querySelector('#aSearch').onsubmit = (e) => { e.preventDefault(); renderAccounts(el, filter, e.target.q.value.trim()); };
-  el.onclick = (e) => { const f = e.target.closest('[data-f]'); if (f) renderAccounts(el, f.dataset.f, q); };
+  el.onclick = (e) => {
+    const a = e.target.closest('[data-acct]'); if (a) { showAccountLibrary(a.dataset.acct); return; }
+    const f = e.target.closest('[data-f]'); if (f) renderAccounts(el, f.dataset.f, q);
+  };
+}
+
+const HOW = { purchase: 'Bought', developer: 'Creator’s own game', demo: 'Demo only', refunded: 'Refunded' };
+async function showAccountLibrary(id) {
+  let d;
+  try { d = await api.admin.account(id); } catch (err) { toast(esc(err.message), { kind: 'error' }); return; }
+  const { user: u, totals: t, library } = d;
+  const how = (x) => x.owned
+    ? `${esc(HOW[x.source] ?? x.source)}${x.source === 'purchase' && x.pricePaidCents != null ? ` · ${price(x.pricePaidCents)}` : ''}${x.acquiredAt ? `<div class="muted small">${date(x.acquiredAt)}</div>` : ''}`
+    : `<span class="muted small">${esc(HOW[x.source] ?? 'Not owned')}</span>`;
+  modal(`<div class="adm-lib">
+      <div class="adm-lib-head"><div><h3>${esc(u.name)}’s library</h3><div class="muted small">${esc(u.email ?? '')}${u.memberSince ? ` · joined ${date(u.memberSince)}` : ''}</div></div><button type="button" class="btn btn-ghost btn-sm" data-close>Close</button></div>
+      <div class="adm-stats">
+        <div class="adm-stat"><b>${t.owned}</b><span>Games owned</span></div>
+        <div class="adm-stat"><b>${hours(t.playtimeSeconds)}</b><span>Total playtime</span><small>${t.sessions} session${t.sessions === 1 ? '' : 's'}</small></div>
+        <div class="adm-stat"><b>${t.lastPlayedAt ? esc(ago(t.lastPlayedAt)) : '—'}</b><span>Last played</span></div>
+      </div>
+      <table class="adm-table"><thead><tr><th>Game</th><th>How they got it</th><th>Playtime</th><th>Sessions</th><th>Last played</th><th>Achievements</th></tr></thead><tbody>
+      ${library.map((x) => `<tr>
+        <td><a href="/app/${esc(x.gameId)}" data-link data-close-link><b>${esc(x.title)}</b></a>${x.listing !== 'live' ? ` ${listingPill(x.listing)}` : ''}</td>
+        <td>${how(x)}</td>
+        <td>${x.playtimeSeconds ? hours(x.playtimeSeconds) : '<span class="muted small">Not played</span>'}</td>
+        <td>${x.sessions || '—'}</td>
+        <td>${x.lastPlayedAt ? `${ago(x.lastPlayedAt)}<div class="muted small">${date(x.lastPlayedAt)}</div>` : '—'}</td>
+        <td>${x.achievements.total ? `${x.achievements.unlocked}/${x.achievements.total}` : '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="muted">No games yet.</td></tr>'}</tbody></table>
+    </div>`, {
+    cls: 'modal-wide',
+    onMount(el, close) {
+      el.querySelector('[data-close]').onclick = close;
+      el.querySelectorAll('[data-close-link]').forEach((a) => a.addEventListener('click', close));
+    },
+  });
 }
 
 async function renderCreators(el) {

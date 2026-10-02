@@ -149,6 +149,7 @@ export const api = {
     orders: (q) => request('GET', `/api/admin/orders${q ? `?q=${enc(q)}` : ''}`),
     refund: (id, reason) => request('POST', `/api/admin/orders/${enc(id)}/refund`, { reason }),
     accounts: (filter, q) => request('GET', `/api/admin/accounts?filter=${enc(filter ?? 'all')}${q ? `&q=${enc(q)}` : ''}`),
+    account: (id) => request('GET', `/api/admin/accounts/${enc(id)}`),
     creators: () => request('GET', '/api/admin/creators'),
     creatorAction: (id, action) => request('POST', `/api/admin/creators/${enc(id)}/${action}`),
     outbox: () => request('GET', '/api/admin/outbox'),
